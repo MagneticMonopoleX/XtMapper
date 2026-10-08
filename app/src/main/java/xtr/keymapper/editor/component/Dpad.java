@@ -124,9 +124,8 @@ public class Dpad extends EditorUiComponent {
     }
 
     private void moveResizeDpad(float x, float y) {
-        dpadView.animate().x(x).y(y)
-                .setDuration(500)
-                .start();
+        dpadView.setX(x);
+        dpadView.setY(y);
 
         // resize dpad from saved profile configuration
         float x1 = dpad.getWidth() - dpadView.getLayoutParams().width;

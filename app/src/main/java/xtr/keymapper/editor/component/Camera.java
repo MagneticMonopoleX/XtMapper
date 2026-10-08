@@ -27,9 +27,8 @@ public class Camera extends EditorUiComponent {
 
         binding.editButton.setOnClickListener(v -> showSettingsDialog());
 
-        cameraView.animate().x(x).y(y)
-                .setDuration(500)
-                .start();
+        cameraView.setX(x);
+        cameraView.setY(y);
 
 
         /* Remove all views and release references when close button clicked */

@@ -60,7 +60,14 @@ public class MovableFloatingActionKey implements View.OnTouchListener {
     }
 
     public String getData(){
-        return "KEY_" + getText() + " " + frameView.getX() + " " + frameView.getY() + " " + frameView.getPivotX();
+        float pivot = frameView.getPivotX();
+        if (pivot <= 0 && frameView.getWidth() > 0) {
+            pivot = frameView.getWidth() / 2f;
+        }
+        if (pivot <= 0) {
+            pivot = 35f * frameView.getContext().getResources().getDisplayMetrics().density;
+        }
+        return "KEY_" + getText() + " " + frameView.getX() + " " + frameView.getY() + " " + pivot;
     }
 
     public void setText(CharSequence s) {
@@ -91,18 +98,25 @@ public class MovableFloatingActionKey implements View.OnTouchListener {
             case MotionEvent.ACTION_MOVE: {
 
                 View viewParent = (View)view.getParent();
-                int parentWidth = viewParent.getWidth();
-                int parentHeight = viewParent.getHeight();
+                int parentWidth = viewParent != null ? viewParent.getWidth() : 0;
+                int parentHeight = viewParent != null ? viewParent.getHeight() : 0;
+                int viewWidth = view.getWidth() > 0 ? view.getWidth() : (int) (70 * view.getContext().getResources().getDisplayMetrics().density);
+                int viewHeight = view.getHeight() > 0 ? view.getHeight() : (int) (70 * view.getContext().getResources().getDisplayMetrics().density);
 
                 float newX = motionEvent.getRawX() + dX;
-                newX = Math.max(layoutParams.leftMargin - view.getPivotX(), newX); // Don't allow the FAB past the left hand side of the parent
-                newX = Math.min(parentWidth - view.getPivotX() - layoutParams.rightMargin, newX); // Don't allow the FAB past the right hand side of the parent
+                if (parentWidth > 0) {
+                    newX = Math.max(layoutParams.leftMargin, newX);
+                    newX = Math.min(parentWidth - viewWidth - layoutParams.rightMargin, newX);
+                }
 
                 float newY = motionEvent.getRawY() + dY;
-                newY = Math.max(layoutParams.topMargin - view.getPivotY(), newY); // Don't allow the FAB past the top of the parent
-                newY = Math.min(parentHeight - view.getPivotY() - layoutParams.bottomMargin, newY); // Don't allow the FAB past the bottom of the parent
+                if (parentHeight > 0) {
+                    newY = Math.max(layoutParams.topMargin, newY);
+                    newY = Math.min(parentHeight - viewHeight - layoutParams.bottomMargin, newY);
+                }
 
-                view.animate().x(newX).y(newY).setDuration(0).start();
+                view.setX(newX);
+                view.setY(newY);
 
                 if (xyChangeListener != null)
                     xyChangeListener.onNewXY(newX, newY);

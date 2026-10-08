@@ -45,9 +45,8 @@ public class Crosshair extends EditorUiComponent {
 
             binding.editButton.setOnClickListener(v -> showMouseAimSettingsDialog());
 
-            crosshairView.animate().x(x).y(y)
-                    .setDuration(500)
-                    .start();
+            crosshairView.setX(x);
+            crosshairView.setY(y);
 
             // Add left click
             leftClick = addLeftClick(profile.mouseAimConfig.xleftClick, profile.mouseAimConfig.yleftClick);

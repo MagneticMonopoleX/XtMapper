@@ -56,11 +56,8 @@ public class MovableFrameLayout extends FrameLayout implements View.OnTouchListe
                 newY = Math.max(layoutParams.topMargin, newY); // Don't allow the FAB past the top of the parent
                 newY = Math.min(parentHeight - viewHeight - layoutParams.bottomMargin, newY); // Don't allow the FAB past the bottom of the parent
 
-                view.animate()
-                        .x(newX)
-                        .y(newY)
-                        .setDuration(0)
-                        .start();
+                view.setX(newX);
+                view.setY(newY);
                 return true; // Consumed
             }
             default:

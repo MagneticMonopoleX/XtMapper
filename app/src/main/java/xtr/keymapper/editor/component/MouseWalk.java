@@ -60,9 +60,8 @@ public class MouseWalk extends EditorUiComponent {
 
 
     private void moveResizeDpad(float x, float y) {
-        rootView.animate().x(x - mouseWalk.radius).y(y - mouseWalk.radius)
-                .setDuration(500)
-                .start();
+        rootView.setX(x - mouseWalk.radius);
+        rootView.setY(y - mouseWalk.radius);
 
         // resize dpad from saved profile configuration
         float x1 = (mouseWalk.radius*2) - rootView.getLayoutParams().width;

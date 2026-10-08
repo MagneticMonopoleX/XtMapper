@@ -59,11 +59,7 @@ public class KeyEventHandler {
         }
 
 
-        // Correction of x and y deviation from center
-        for (Key key: profile.keys) {
-            key.x += key.offset;
-            key.y += key.offset;
-        }
+        // Center offset is applied non-destructively in handleEvent when injecting touch
 
         swipeKeyHandlers = new ArrayList<>();
         for (SwipeKey key : profile.swipeKeys) {
@@ -115,7 +111,7 @@ public class KeyEventHandler {
         ArrayList<Key> keyList = mInput.getKeymapProfile().keys;
         for (Key key : keyList)
             if (event.code.equals(key.code))
-                mInput.injectEvent(key.x, key.y, event.action, keyList.indexOf(key));
+                mInput.injectEvent(key.x + key.offset, key.y + key.offset, event.action, keyList.indexOf(key));
 
         for (SwipeKeyHandler swipeKeyHandler : swipeKeyHandlers)
             swipeKeyHandler.handleEvent(event, mInput, pidProvider, eventHandler, keymapConfig.swipeDelayMs);

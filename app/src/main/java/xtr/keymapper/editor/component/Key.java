@@ -39,11 +39,8 @@ public class Key extends EditorUiComponent {
         }, getCallback().getKeysContainerView());
 
         floatingKey.setText(key.code.substring(4));
-        floatingKey.frameView.animate()
-                .x(key.x)
-                .y(key.y)
-                .setDuration(1000)
-                .start();
+        floatingKey.setX(key.x);
+        floatingKey.setY(key.y);
         floatingKey.setOnClickListener(this::onFloatingKeyClick);
 
         floatingKey.frameView.setScaleX(keymapConfig.floatingKeysSize);

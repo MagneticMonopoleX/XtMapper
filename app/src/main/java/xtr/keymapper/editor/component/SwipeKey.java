@@ -76,20 +76,14 @@ public class SwipeKey extends EditorUiComponent {
         public SwipeKeyView(ViewGroup rootView, xtr.keymapper.keymap.element.SwipeKey swipeKey, SwipeKeyCallback callback) {
             this(rootView, callback);
             button1.setText(swipeKey.key1.code);
-            button1.frameView.animate()
-                    .x(swipeKey.key1.x)
-                    .y(swipeKey.key1.y)
-                    .setDuration(500)
-                    .withEndAction(() -> onXyChange(0, 0))
-                    .start();
+            button1.setX(swipeKey.key1.x);
+            button1.setY(swipeKey.key1.y);
 
             button2.setText(swipeKey.key2.code);
-            button2.frameView.animate()
-                    .x(swipeKey.key2.x)
-                    .y(swipeKey.key2.y)
-                    .setDuration(500)
-                    .withEndAction(() -> onXyChange(0, 0))
-                    .start();
+            button2.setX(swipeKey.key2.x);
+            button2.setY(swipeKey.key2.y);
+
+            onXyChange(0, 0);
 
             KeymapConfig keymapConfig = new KeymapConfig(rootView.getContext());
 

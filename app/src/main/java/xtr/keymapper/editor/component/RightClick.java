@@ -21,9 +21,8 @@ public class RightClick extends EditorUiComponent {
         }, mCallback.getKeysContainerView());
         rightClick.frameView.setBackgroundResource(R.drawable.ic_baseline_mouse_36);
         rightClick.setText(R.string.right_click);
-        rightClick.frameView.animate().x(x).y(y)
-                .setDuration(500)
-                .start();
+        rightClick.setX(x);
+        rightClick.setY(y);
 
     }
 
