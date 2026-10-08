@@ -23,6 +23,8 @@ public class KeymapConfig implements Parcelable {
     public int swipeDelayMs;
     public String pauseResumeShortcutKeyModifier, launchEditorShortcutKeyModifier, switchProfileShortcutKeyModifier;
     public int pointerMode;
+    public boolean touchJitter;
+    public float touchJitterSpread = 15f;
 
     public static final String KEY_CTRL = "Ctrl", KEY_ALT = "Alt";
     public static final int TOUCHPAD_DIRECT = 3;
@@ -81,6 +83,8 @@ public class KeymapConfig implements Parcelable {
         mouseAimToggle = in.readByte() != 0;
         touchpadInputMode = in.readInt();
         floatingKeysSize = in.readFloat();
+        touchJitter = in.readByte() != 0;
+        touchJitterSpread = in.readFloat();
     }
 
     @Override
@@ -118,6 +122,8 @@ public class KeymapConfig implements Parcelable {
         dest.writeByte((byte) (mouseAimToggle ? 1 : 0));
         dest.writeInt(touchpadInputMode);
         dest.writeFloat(floatingKeysSize);
+        dest.writeByte((byte) (touchJitter ? 1 : 0));
+        dest.writeFloat(touchJitterSpread);
     }
 
     @Override
@@ -168,6 +174,8 @@ public class KeymapConfig implements Parcelable {
         pointerMode = sharedPref.getInt("pointer_mode", POINTER_OVERLAY);
 
         floatingKeysSize = sharedPref.getFloat("floating_keys_size", 1);
+        touchJitter = sharedPref.getBoolean("touch_jitter", false);
+        touchJitterSpread = sharedPref.getFloat("touch_jitter_spread", 15f);
     }
 
     public void applySharedPrefs() {
@@ -194,6 +202,8 @@ public class KeymapConfig implements Parcelable {
                 .putInt("swipe_delay_ms", swipeDelayMs)
                 .putInt("pointer_mode", pointerMode)
                 .putFloat("floating_keys_size", floatingKeysSize)
+                .putBoolean("touch_jitter", touchJitter)
+                .putFloat("touch_jitter_spread", touchJitterSpread)
                 .apply();
     }
 

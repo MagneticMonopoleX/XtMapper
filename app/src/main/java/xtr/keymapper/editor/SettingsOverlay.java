@@ -84,6 +84,11 @@ public class SettingsOverlay {
         binding.swipeDelayText.setText(context.getString(R.string.swipe_delay_ms, keymapConfig.swipeDelayMs));
         binding.sliderSwipeDelay.addOnChangeListener((slider, value, fromUser) -> binding.swipeDelayText.setText(context.getString(R.string.swipe_delay_ms, (int)value)));
 
+        float initialJitter = keymapConfig.touchJitter ? keymapConfig.touchJitterSpread : 0f;
+        binding.sliderTouchJitter.setValue(initialJitter);
+        updateTouchJitterText((int) initialJitter);
+        binding.sliderTouchJitter.addOnChangeListener((slider, value, fromUser) -> updateTouchJitterText((int) value));
+
         binding.mouseDragToggle.setChecked(keymapConfig.ctrlDragMouseGesture);
         binding.mouseWheelToggle.setChecked(keymapConfig.ctrlMouseWheelZoom);
 
@@ -130,6 +135,23 @@ public class SettingsOverlay {
         binding.advanced.setOnClickListener(v -> showSettingsDialog());
     }
 
+    private void updateTouchJitterText(int px) {
+        if (binding == null) return;
+        if (px == 0) {
+            binding.touchJitterText.setText(context.getString(R.string.touch_jitter) + " (" + context.getString(R.string.disabled) + ")");
+        } else {
+            binding.touchJitterText.setText(context.getString(R.string.touch_jitter_spread_px, px));
+        }
+    }
+
+    private void updateSettingsJitterText(SettingsBinding settingsBinding, boolean isChecked, int px) {
+        if (isChecked) {
+            settingsBinding.touchJitterSpreadText.setText(context.getString(R.string.touch_jitter_spread_px, px));
+        } else {
+            settingsBinding.touchJitterSpreadText.setText(context.getString(R.string.touch_jitter_spread) + " (" + context.getString(R.string.disabled) + ")");
+        }
+    }
+
     private void showSettingsDialog() {
 
         SettingsBinding settingsBinding = SettingsBinding.inflate(LayoutInflater.from(context));
@@ -141,18 +163,42 @@ public class SettingsOverlay {
         settingsBinding.showControls.setChecked(keymapConfig.showControls);
         settingsBinding.showControlsOpacity.setValue(keymapConfig.showControlsOpacity);
 
+        settingsBinding.touchJitterSwitch.setChecked(keymapConfig.touchJitter);
+        float spreadVal = keymapConfig.touchJitterSpread > 0 ? keymapConfig.touchJitterSpread : 15f;
+        settingsBinding.touchJitterSpread.setValue(spreadVal);
+        settingsBinding.touchJitterSpread.setEnabled(keymapConfig.touchJitter);
+        updateSettingsJitterText(settingsBinding, keymapConfig.touchJitter, (int) spreadVal);
+
+        settingsBinding.touchJitterSwitch.setOnCheckedChangeListener((btn, isChecked) -> {
+            settingsBinding.touchJitterSpread.setEnabled(isChecked);
+            updateSettingsJitterText(settingsBinding, isChecked, (int) settingsBinding.touchJitterSpread.getValue());
+        });
+        settingsBinding.touchJitterSpread.addOnChangeListener((slider, value, fromUser) -> {
+            updateSettingsJitterText(settingsBinding, settingsBinding.touchJitterSwitch.isChecked(), (int) value);
+        });
+
+        Runnable saveSettings = () -> {
+            keymapConfig.disableAutoProfiling = settingsBinding.autoProfileSwitch.isChecked();
+            keymapConfig.useShizuku = settingsBinding.useShizuku.isChecked();
+            keymapConfig.editorOverlay = settingsBinding.editorOverlay.isChecked();
+            keymapConfig.showControls = settingsBinding.showControls.isChecked();
+            keymapConfig.showControlsOpacity = settingsBinding.showControlsOpacity.getValue();
+            keymapConfig.touchJitter = settingsBinding.touchJitterSwitch.isChecked();
+            keymapConfig.touchJitterSpread = settingsBinding.touchJitterSpread.getValue();
+            if (binding != null) {
+                float currentVal = keymapConfig.touchJitter ? keymapConfig.touchJitterSpread : 0f;
+                binding.sliderTouchJitter.setValue(currentVal);
+                updateTouchJitterText((int) currentVal);
+            }
+            keymapConfig.applySharedPrefs();
+        };
+
         AlertDialog dialog = new MaterialAlertDialogBuilder(context, R.style.MaterialAlertDialog_Centered)
                 .setView(settingsBinding.getRoot())
                 .setTitle(R.string.advanced)
                 .setIcon(R.drawable.ic_baseline_settings_24)
                 .setCancelable(true)
-                .setOnCancelListener(d -> {
-                    keymapConfig.disableAutoProfiling = settingsBinding.autoProfileSwitch.isChecked();
-                    keymapConfig.useShizuku = settingsBinding.useShizuku.isChecked();
-                    keymapConfig.editorOverlay = settingsBinding.editorOverlay.isChecked();
-                    keymapConfig.showControls = settingsBinding.showControls.isChecked();
-                    keymapConfig.showControlsOpacity = settingsBinding.showControlsOpacity.getValue();
-                })
+                .setOnDismissListener(d -> saveSettings.run())
                 .create();
         if(overlayWindow) dialog.getWindow().setType(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : WindowManager.LayoutParams.TYPE_SYSTEM_ALERT);
         dialog.show();
@@ -233,6 +279,14 @@ public class SettingsOverlay {
 
         keymapConfig.rightClickMouseAim = binding.mouseAimRightClick.isChecked();
         keymapConfig.keyGraveMouseAim = binding.mouseAimKeyGrave.isChecked();
+
+        float jitterVal = binding.sliderTouchJitter.getValue();
+        if (jitterVal > 0) {
+            keymapConfig.touchJitter = true;
+            keymapConfig.touchJitterSpread = jitterVal;
+        } else {
+            keymapConfig.touchJitter = false;
+        }
 
         keymapConfig.applySharedPrefs();
         binding = null;

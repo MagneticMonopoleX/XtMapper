@@ -25,4 +25,5 @@ public interface IInputInterface {
     void hideCursor();
 
     void showCursor();
+    TouchJitter getTouchJitter();
 }

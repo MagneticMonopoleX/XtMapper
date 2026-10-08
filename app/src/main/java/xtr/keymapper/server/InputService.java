@@ -7,6 +7,7 @@ import static xtr.keymapper.InputEventCodes.REL_WHEEL;
 import static xtr.keymapper.InputEventCodes.REL_X;
 import static xtr.keymapper.InputEventCodes.REL_Y;
 
+import android.graphics.PointF;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.RemoteException;
@@ -26,6 +27,9 @@ public class InputService implements IInputInterface {
     private KeymapConfig keymapConfig;
     private KeymapProfile keymapProfile;
     private final Input input;
+    private final TouchJitter touchJitter;
+    private final int screenWidth;
+    private final int screenHeight;
     public static final int UP = 0, DOWN = 1, MOVE = 2;
     private final IRemoteServiceCallback mCallback;
     boolean stopEvents = false;
@@ -51,6 +55,10 @@ public class InputService implements IInputInterface {
         this.mCallback = mCallback;
         this.isWaylandClient = isWaylandClient;
         this.cursorView = cursorView;
+        this.screenWidth = screenWidth;
+        this.screenHeight = screenHeight;
+        this.touchJitter = new TouchJitter(keymapConfig.touchJitter, keymapConfig.touchJitterSpread);
+        this.touchJitter.setScreenDimensions(screenWidth, screenHeight);
         this.currentPointerMode = keymapConfig.pointerMode;
         if (currentPointerMode != KeymapConfig.POINTER_OVERLAY) {
             initMouseCursor(screenWidth, screenHeight);
@@ -77,15 +85,18 @@ public class InputService implements IInputInterface {
     }
 
     public void injectEvent(float x, float y, int action, int pointerId) {
+        TouchJitter.Point wrapped = touchJitter != null ?
+                touchJitter.wrapCoordinates(x, y, action, pointerId) :
+                new TouchJitter.Point(x, y);
         switch (action) {
             case UP:
-                input.injectTouch(MotionEvent.ACTION_UP, pointerId, 0.0f, x, y);
+                input.injectTouch(MotionEvent.ACTION_UP, pointerId, 0.0f, wrapped.x, wrapped.y);
                 break;
             case DOWN:
-                input.injectTouch(MotionEvent.ACTION_DOWN, pointerId, 1.0f, x, y);
+                input.injectTouch(MotionEvent.ACTION_DOWN, pointerId, 1.0f, wrapped.x, wrapped.y);
                 break;
             case MOVE:
-                input.injectTouch(MotionEvent.ACTION_MOVE, pointerId, 0.0f, x, y);
+                input.injectTouch(MotionEvent.ACTION_MOVE, pointerId, 0.0f, wrapped.x, wrapped.y);
                 break;
         }
     }
@@ -200,6 +211,9 @@ public class InputService implements IInputInterface {
         try {
             this.keymapProfile = mCallback.requestKeymapProfile();
             this.keymapConfig = mCallback.requestKeymapConfig();
+            if (this.touchJitter != null && this.keymapConfig != null) {
+                this.touchJitter.updateConfig(this.keymapConfig.touchJitter, this.keymapConfig.touchJitterSpread);
+            }
             this.stop();
             keyEventHandler.init();
             mouseEventHandler.init();
@@ -209,8 +223,16 @@ public class InputService implements IInputInterface {
     }
 
     public void stop() {
+        if (touchJitter != null) {
+            touchJitter.clear();
+        }
         keyEventHandler.stop();
         mouseEventHandler.stop();
+    }
+
+    @Override
+    public TouchJitter getTouchJitter() {
+        return touchJitter;
     }
 
     public void stopTouchpad() {

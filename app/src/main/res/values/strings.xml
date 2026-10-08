@@ -123,4 +123,8 @@
     <string name="mouse_walk">Mouse walk</string>
     <string name="reset">Reset</string>
     <string name="share">Share</string>
+    <string name="touch_jitter">Touch Coordinate Jitter</string>
+    <string name="touch_jitter_summary">Add random error to touch coordinates</string>
+    <string name="touch_jitter_spread">Touch Jitter Spread</string>
+    <string name="touch_jitter_spread_px">Touch jitter spread: %d px</string>
 </resources>
