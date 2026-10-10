@@ -21,13 +21,26 @@ public class ShowKeymapService extends Service {
 
     @Override
     public void onDestroy() {
-        editorUi.hideView();
+        if (editorUi != null) {
+            EditorUI ui = editorUi;
+            editorUi = null;
+            ui.hideView();
+        }
         super.onDestroy();
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (editorUi != null) editorUi.hideView();
+        if (intent == null) {
+            stopSelf();
+            return START_NOT_STICKY;
+        }
+
+        if (editorUi != null) {
+            EditorUI ui = editorUi;
+            editorUi = null;
+            ui.hideView();
+        }
 
         String selectedProfile = intent.getStringExtra(EditorActivity.PROFILE_NAME);
 
@@ -39,11 +52,12 @@ public class ShowKeymapService extends Service {
         editorUi = new EditorUI(context, editorCallback, selectedProfile, EditorUI.SHOW_KEYMAP_ONLY);
         editorUi.loadKeymapAfterView();
         editorUi.showControls(keymapConfig.showControlsOpacity);
-        return super.onStartCommand(intent, flags, startId);
+        return START_NOT_STICKY;
     }
 
     private final EditorCallback editorCallback = () -> {
         editorUi = null;
+        stopSelf();
     };
 
 

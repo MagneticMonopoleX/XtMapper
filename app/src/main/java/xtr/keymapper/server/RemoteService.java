@@ -172,7 +172,7 @@ public class RemoteService extends IRemoteService.Stub {
         while ((line = getevent.readLine()) != null) {
             String[] data = line.split(":"); // split a string like "/dev/input/event2: EV_REL REL_X ffffffff"
             if (addNewDevices(data)) {
-                if (inputService != null) try {
+                if (inputService != null) {
                     if (isWaylandClient && data[0].contains("wl_pointer"))
                         inputService.onWaylandMouseEvent(data[1]);
 
@@ -182,9 +182,14 @@ public class RemoteService extends IRemoteService.Stub {
                     } else {
                         k.handleKeyboardShortcutEvent(data[1]);
                     }
-                    if (mOnKeyEventListener != null) mOnKeyEventListener.onKeyEvent(line);
-                } catch (RemoteException e) {
-                    throw new RuntimeException(e);
+                    if (mOnKeyEventListener != null) {
+                        try {
+                            mOnKeyEventListener.onKeyEvent(line);
+                        } catch (RemoteException e) {
+                            Log.w(TAG, "mOnKeyEventListener is dead, unregistering: " + e.getMessage());
+                            mOnKeyEventListener = null;
+                        }
+                    }
                 }
             }
         }
@@ -250,8 +255,8 @@ public class RemoteService extends IRemoteService.Stub {
                     inputService.setMouseLock(true);
                     inputService.openDevice(currentDevice);
                 }
-            } catch (RemoteException e) {
-                throw new RuntimeException(e);
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to initialize InputService: " + e.getMessage(), e);
             }
             // Launch app/game
             if (!profile.packageName.equals(BuildConfig.APPLICATION_ID) && keymapConfig.disableAutoProfiling) {
@@ -260,7 +265,7 @@ public class RemoteService extends IRemoteService.Stub {
                     new ProcessBuilder("am", "start", "-a", "android.intent.action.MAIN", "-n",
                             launchIntent.getComponent().flattenToString()).start();
                 } catch (IOException e) {
-                    throw new RuntimeException(e);
+                    Log.e(TAG, "Failed to launch app: " + profile.packageName, e);
                 }
             }
         });
@@ -277,10 +282,10 @@ public class RemoteService extends IRemoteService.Stub {
     }
 
     private void stopServer(boolean exitProcess) {
-        if (inputService != null) try {
+        if (inputService != null && inputService.getCallback() != null) try {
             inputService.getCallback().disablePointer();
         } catch (RemoteException e) {
-            throw new RuntimeException(e);
+            Log.w(TAG, "Failed to call disablePointer: " + e.getMessage());
         }
 
         if (!startedFromShell && exitProcess) {

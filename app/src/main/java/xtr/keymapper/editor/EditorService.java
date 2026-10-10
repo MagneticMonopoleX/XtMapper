@@ -14,24 +14,45 @@ import xtr.keymapper.R;
 import xtr.keymapper.server.RemoteServiceHelper;
 
 public class EditorService extends Service {
+    private static final String TAG = "EditorService";
     private EditorUI editor;
 
     private void editorCallback() {
         editor = null;
         stopSelf();
-    };
+    }
+
+    @Override
+    public void onDestroy() {
+        if (editor != null) {
+            EditorUI ui = editor;
+            editor = null;
+            ui.hideView();
+        }
+        super.onDestroy();
+    }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent == null) {
+            stopSelf();
+            return START_NOT_STICKY;
+        }
+
         String selectedProfile = intent.getStringExtra(EditorActivity.PROFILE_NAME);
 
         if (selectedProfile == null) {
             selectedProfile = "Default";
         }
 
-
         KeymapConfig keymapConfig = new KeymapConfig(this);
         if (keymapConfig.editorOverlay) {
+            if (editor != null) {
+                EditorUI ui = editor;
+                editor = null;
+                ui.hideView();
+            }
+
             Context context = new ContextThemeWrapper(EditorService.this, R.style.Theme_XtMapper);
             editor = new EditorUI(context, this::editorCallback, selectedProfile, EditorUI.START_EDITOR);
 
@@ -41,7 +62,7 @@ public class EditorService extends Service {
                         editor.registerOnKeyEventListener(remoteService);
                     }
                 } catch (RemoteException e) {
-                    Log.e("editorActivity", e.getMessage(), e);
+                    Log.e(TAG, "Failed to register key event listener: " + e.getMessage(), e);
                 }
             });
 
@@ -52,9 +73,10 @@ public class EditorService extends Service {
                     .addFlags(Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
             newIntent.putExtra(EditorActivity.PROFILE_NAME, selectedProfile);
             startActivity(newIntent);
+            stopSelf();
         }
 
-        return super.onStartCommand(intent, flags, startId);
+        return START_NOT_STICKY;
     }
 
     @Override

@@ -48,7 +48,7 @@ public class InputService implements IInputInterface {
                         int screenHeight,
                         View cursorView,
                         boolean isWaylandClient,
-                        int displayId) throws RemoteException {
+                        int displayId) {
         profile.scale(screenWidth, screenHeight);
         this.keymapProfile = profile;
         this.keymapConfig = keymapConfig;
@@ -184,11 +184,11 @@ public class InputService implements IInputInterface {
     public void hideCursor() {
         if (cursorView != null) {
             mHandler.post(() -> cursorView.setVisibility(View.GONE));
-        } else {
+        } else if (mCallback != null) {
             try {
                 mCallback.disablePointer();
             } catch (RemoteException e) {
-                throw new RuntimeException(e);
+                Log.w(RemoteService.TAG, "Failed to disable pointer: " + e.getMessage());
             }
         }
     }
@@ -197,14 +197,13 @@ public class InputService implements IInputInterface {
     public void showCursor() {
         if (cursorView != null) {
             mHandler.post(() -> cursorView.setVisibility(View.VISIBLE));
-        } else {
+        } else if (mCallback != null) {
             try {
                 mCallback.enablePointer();
             } catch (RemoteException e) {
-                throw new RuntimeException(e);
+                Log.w(RemoteService.TAG, "Failed to enable pointer: " + e.getMessage());
             }
         }
-
     }
 
     public void reloadKeymap() {

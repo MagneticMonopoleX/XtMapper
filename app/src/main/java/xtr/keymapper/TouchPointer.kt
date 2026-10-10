@@ -67,7 +67,7 @@ class TouchPointer : Service() {
     override fun onStartCommand(i: Intent?, flags: Int, startId: Int): Int {
         if (i == null) {
             stopSelf()
-            return super.onStartCommand(null, flags, startId)
+            return START_NOT_STICKY
         }
 
         // Launch default profile
@@ -147,7 +147,7 @@ class TouchPointer : Service() {
         }, Handler(Looper.getMainLooper()))
 
 
-        return super.onStartCommand(i, flags, startId)
+        return START_REDELIVER_INTENT
     }
 
     fun launchProfile(profileName: String?) {
@@ -227,7 +227,7 @@ class TouchPointer : Service() {
     @Throws(RemoteException::class)
     private fun stopServer() {
         stopService(Intent(this, ShowKeymapService::class.java))
-        mService!!.stopServer()
+        mService?.stopServer()
     }
 
     /**
