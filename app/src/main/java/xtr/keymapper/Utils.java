@@ -41,10 +41,60 @@ public class Utils {
                 WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR,
                 // Make the underlying application window visible through the cursor
                 PixelFormat.TRANSLUCENT);
+        mParams.alpha = 0.5f;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             mParams.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
         }
         return mParams;
+    }
+
+    public static void applyEmptyTouchableRegion(android.view.View view) {
+        if (view == null) return;
+        android.view.View.OnAttachStateChangeListener listener = new android.view.View.OnAttachStateChangeListener() {
+            @Override
+            public void onViewAttachedToWindow(android.view.View v) {
+                registerEmptyTouchableRegion(v);
+            }
+
+            @Override
+            public void onViewDetachedFromWindow(android.view.View v) {}
+        };
+        view.addOnAttachStateChangeListener(listener);
+        if (view.isAttachedToWindow()) {
+            registerEmptyTouchableRegion(view);
+        }
+    }
+
+    private static void registerEmptyTouchableRegion(android.view.View view) {
+        try {
+            Class<?> listenerClass = Class.forName("android.view.ViewTreeObserver$OnComputeInternalInsetsListener");
+            Class<?> infoClass = Class.forName("android.view.ViewTreeObserver$InternalInsetsInfo");
+            java.lang.reflect.Field touchableRegionField = infoClass.getField("touchableRegion");
+            java.lang.reflect.Method setTouchableInsetsMethod = infoClass.getMethod("setTouchableInsets", int.class);
+            java.lang.reflect.Field touchableInsetsRegionField = infoClass.getField("TOUCHABLE_INSETS_REGION");
+            int touchableInsetsRegion = touchableInsetsRegionField.getInt(null);
+
+            Object listener = java.lang.reflect.Proxy.newProxyInstance(
+                    listenerClass.getClassLoader(),
+                    new Class<?>[]{listenerClass},
+                    (proxy, method, args) -> {
+                        if ("onComputeInternalInsets".equals(method.getName()) && args != null && args.length > 0) {
+                            Object info = args[0];
+                            android.graphics.Region region = (android.graphics.Region) touchableRegionField.get(info);
+                            if (region != null) {
+                                region.setEmpty();
+                            }
+                            setTouchableInsetsMethod.invoke(info, touchableInsetsRegion);
+                        }
+                        return null;
+                    }
+            );
+
+            java.lang.reflect.Method addListenerMethod = android.view.ViewTreeObserver.class.getMethod("addOnComputeInternalInsetsListener", listenerClass);
+            addListenerMethod.invoke(view.getViewTreeObserver(), listener);
+        } catch (Throwable t) {
+            android.util.Log.w("Utils", "Failed to register empty touchable region", t);
+        }
     }
 
 

@@ -69,6 +69,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:valueFrom="0"
-            android:valueTo="1" />
+            android:valueTo="0.8" />
     </LinearLayout>
 </ScrollView>

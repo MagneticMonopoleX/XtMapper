@@ -147,6 +147,7 @@ public class RemoteServiceHelper {
                     else callback.onConnection(null);
                 } else {
                     if (Boolean.TRUE.equals(Shell.isAppGrantedRoot())) {
+                        Shell.cmd("settings put global block_untrusted_touches 0").submit();
                         Intent intent = new Intent(context, RootRemoteService.class);
                         RootService.bind(intent, connection);
                     } else callback.onConnection(null);

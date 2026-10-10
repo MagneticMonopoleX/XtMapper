@@ -154,7 +154,7 @@ public class KeymapConfig implements Parcelable {
         editorOverlay = sharedPref.getBoolean("editor_overlay", false);
 
         showControls = sharedPref.getBoolean("show_controls", false);
-        showControlsOpacity = sharedPref.getFloat("show_controls_opacity", 0.2f);
+        showControlsOpacity = Math.min(sharedPref.getFloat("show_controls_opacity", 0.2f), 0.8f);
 
         launchEditorShortcutKey = sharedPref.getString("launch_editor_shortcut", launchEditorShortcutKey);
         pauseResumeShortcutKey = sharedPref.getString("pause_resume_shortcut", pauseResumeShortcutKey);

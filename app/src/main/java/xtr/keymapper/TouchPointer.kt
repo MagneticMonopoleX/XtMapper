@@ -312,6 +312,8 @@ class TouchPointer : Service() {
 
                     val mParams =
                         Utils.getPointerLayoutParams(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_SYSTEM_ALERT)
+                    mParams.alpha = 0.5f
+                    Utils.applyEmptyTouchableRegion(cursorView)
 
                     mWindowManager!!.addView(cursorView, mParams)
                 }

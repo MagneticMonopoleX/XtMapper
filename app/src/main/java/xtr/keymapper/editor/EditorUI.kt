@@ -222,7 +222,14 @@ class EditorUI(
             mParams.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
         }
 
-        if (alpha < 1 && alpha > 0) overlayView.setAlpha(alpha)
+        if (startMode == SHOW_KEYMAP_ONLY) {
+            val targetAlpha = if (alpha > 0f && alpha <= 0.8f) alpha else 0.2f
+            mParams.alpha = targetAlpha
+            overlayView.setAlpha(1.0f)
+            Utils.applyEmptyTouchableRegion(overlayView)
+        } else {
+            if (alpha < 1 && alpha > 0) overlayView.setAlpha(alpha)
+        }
 
         mWindowManager.addView(overlayView, mParams)
         overlayOpen = true
