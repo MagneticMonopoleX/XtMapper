@@ -29,7 +29,7 @@ public class EditorService extends ComposeLifecycleService {
         if (editor != null) {
             EditorUI ui = editor;
             editor = null;
-            ui.hideView();
+            ui.closeEditor();
         }
         super.onDestroy();
     }
@@ -52,7 +52,7 @@ public class EditorService extends ComposeLifecycleService {
             if (editor != null) {
                 EditorUI ui = editor;
                 editor = null;
-                ui.hideView();
+                ui.closeEditor();
             }
 
             Context context = new ContextThemeWrapper(
