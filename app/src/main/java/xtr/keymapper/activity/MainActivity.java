@@ -38,6 +38,9 @@ import xtr.keymapper.editor.EditorUI;
 import xtr.keymapper.keymap.KeymapConfig;
 import xtr.keymapper.server.RemoteServiceHelper;
 import xtr.keymapper.GameKeyMapperBridge;
+import xtr.keymapper.service.XtMapperAccessibilityService;
+import xtr.keymapper.keymap.KeymapProfile;
+import xtr.keymapper.keymap.KeymapProfiles;
 
 public class MainActivity extends AppCompatActivity {
     public static final String SHELL_INIT = "shell";
@@ -82,7 +85,7 @@ public class MainActivity extends AppCompatActivity {
         Server.setupServer(this, mCallback);
 
 
-        if (!startedFromShell) {
+        if (!startedFromShell && !keymapConfig.isAccessibilityMode()) {
             /*
              * If user has not enabled "Use Shizuku" from settings
              * Then Check for root access
@@ -193,24 +196,48 @@ public class MainActivity extends AppCompatActivity {
             setButtonState(false);
             requestNotificationPermission();
         }
-        if (RemoteServiceHelper.useShizuku) {
-            if (!Shizuku.pingBinder() || Shizuku.checkSelfPermission() != PERMISSION_GRANTED)
-                alertShizukuNotAuthorized();
-        } else if (Boolean.FALSE.equals(Shell.isAppGrantedRoot())) {
-            // No need to alert about root access if started from shell
-            if (!startedFromShell) alertRootAccessAndExit();
+        KeymapConfig keymapConfig = new KeymapConfig(this);
+        if (keymapConfig.isAccessibilityMode()) {
+            if (!XtMapperAccessibilityService.Companion.isEnabled(this)) {
+                alertAccessibilityNotAuthorized();
+                return null;
+            }
+        } else {
+            if (RemoteServiceHelper.useShizuku) {
+                if (!Shizuku.pingBinder() || Shizuku.checkSelfPermission() != PERMISSION_GRANTED)
+                    alertShizukuNotAuthorized();
+            } else if (Boolean.FALSE.equals(Shell.isAppGrantedRoot())) {
+                // No need to alert about root access if started from shell
+                if (!startedFromShell) alertRootAccessAndExit();
+            }
         }
 
         return null;
+    }
+
+    public void alertAccessibilityNotAuthorized() {
+        showAlertDialog(R.string.accessibility_service_name, R.string.accessibility_service_description,
+                (dialog, which) -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)),
+                R.string.ok);
     }
 
     private void setButtonState(boolean start) {
         composeServiceActive = !start;
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        composeServiceActive = TouchPointer.Companion.isRunning();
+    }
+
     public void stopPointer(){
+        if (TouchPointer.Companion.getActiveInstance() != null) {
+            TouchPointer.Companion.getActiveInstance().stopKeymapper();
+        }
         unbindTouchPointer();
         Intent intent = new Intent(this, TouchPointer.class);
+        intent.setAction(TouchPointer.ACTION_STOP);
         stopService(intent);
         setButtonState(true);
     }
@@ -301,7 +328,7 @@ public class MainActivity extends AppCompatActivity {
     // ============ COMPOSE UI BRIDGE ============
 
     public boolean isComposeServiceActive() {
-        return composeServiceActive;
+        return composeServiceActive || TouchPointer.Companion.isRunning();
     }
 
     public String selectedProfileNameForCompose() {
@@ -309,16 +336,48 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void toggleServiceFromCompose() {
-        if (composeServiceActive) stopPointer();
+        if (isComposeServiceActive()) stopPointer();
         else startPointer();
     }
 
     public void fixPermissionFromCompose() {
-        checkOverlayPermission(this);
+        KeymapConfig config = new KeymapConfig(this);
+        if (config.isAccessibilityMode() && !XtMapperAccessibilityService.Companion.isEnabled(this)) {
+            startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+        } else if (!Settings.canDrawOverlays(this)) {
+            checkOverlayPermission(this);
+        }
+    }
+
+    public void toggleInputModeFromCompose() {
+        KeymapConfig config = new KeymapConfig(this);
+        config.inputMode = config.isAccessibilityMode() ? KeymapConfig.MODE_ROOT : KeymapConfig.MODE_ACCESSIBILITY;
+        config.applySharedPrefs();
+        if (config.isAccessibilityMode() && !XtMapperAccessibilityService.Companion.isEnabled(this)) {
+            alertAccessibilityNotAuthorized();
+        }
+        if (isServiceBound && pointerOverlay != null) {
+            pointerOverlay.applyProfile(new KeymapProfiles(this).getProfile(selectedProfileName, true));
+        }
     }
 
     public void testInputFromCompose() {
-        Toast.makeText(this, "Input tester is not exposed by the legacy implementation.", Toast.LENGTH_SHORT).show();
+        KeymapConfig config = new KeymapConfig(this);
+        if (config.isAccessibilityMode()) {
+            if (!XtMapperAccessibilityService.Companion.isEnabled(this)) {
+                alertAccessibilityNotAuthorized();
+                return;
+            }
+            var dispatcher = XtMapperAccessibilityService.Companion.getInputDispatcher();
+            if (dispatcher != null) {
+                dispatcher.injectEvent(500f, 500f, 1, 0);
+                Toast.makeText(this, "Dispatched Accessibility test tap with jitter!", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Start service first to test input", Toast.LENGTH_SHORT).show();
+            }
+        } else {
+            Toast.makeText(this, "Root mode active. Connect game controller or keyboard to test.", Toast.LENGTH_SHORT).show();
+        }
     }
 
     public void selectProfileFromCompose(String profileName) {
@@ -413,6 +472,13 @@ public class MainActivity extends AppCompatActivity {
 
     public void onProfileSelected(String profileName) {
         this.selectedProfileName = profileName;
+        if (profileName != null) {
+            KeymapProfiles profiles = new KeymapProfiles(this);
+            KeymapProfile p = profiles.getProfile(profileName, false);
+            if (p != null && p.packageName != null && !p.packageName.isEmpty()) {
+                profiles.setDesignatedProfileForApp(p.packageName, profileName);
+            }
+        }
     }
 
     private final TouchPointer.MainActivityCallback mCallback = new TouchPointer.MainActivityCallback() {

@@ -33,19 +33,47 @@ public class KeymapProfiles {
 
     public Map<String, KeymapProfile> getAllProfiles(){
         Map<String, KeymapProfile> allProfiles = new HashMap<>();
-        sharedPref.getAll().forEach((BiConsumer<String, Object>) (key, lines) ->
-                allProfiles.put(key, getProfile((Set<String>) lines)));
+        sharedPref.getAll().forEach((BiConsumer<String, Object>) (key, lines) -> {
+            if (key.startsWith("designated_profile_")) return;
+            if (lines instanceof Set) {
+                allProfiles.put(key, getProfile((Set<String>) lines));
+            }
+        });
         return allProfiles;
     }
 
     public Map<String, KeymapProfile> getAllProfilesForApp(String packageName){
         Map<String, KeymapProfile> appProfiles = new HashMap<>();
         sharedPref.getAll().forEach((BiConsumer<String, Object>) (key, lines) -> {
+            if (key.startsWith("designated_profile_")) return;
+            if (!(lines instanceof Set)) return;
             KeymapProfile profile = getProfile((Set<String>) lines);
             if(profile.packageName.equals(packageName))
                 appProfiles.put(key, profile);
         });
         return appProfiles;
+    }
+
+    public String getDesignatedProfileForApp(String packageName) {
+        if (packageName == null || packageName.isEmpty()) return null;
+        String designated = sharedPref.getString("designated_profile_" + packageName, null);
+        if (designated != null && sharedPref.contains(designated)) {
+            return designated;
+        }
+        Map<String, KeymapProfile> profiles = getAllProfilesForApp(packageName);
+        if (profiles.isEmpty()) return null;
+        for (Map.Entry<String, KeymapProfile> entry : profiles.entrySet()) {
+            if (!entry.getValue().disabled) {
+                return entry.getKey();
+            }
+        }
+        return profiles.keySet().iterator().next();
+    }
+
+    public void setDesignatedProfileForApp(String packageName, String profileName) {
+        if (packageName != null && !packageName.isEmpty() && profileName != null) {
+            sharedPref.edit().putString("designated_profile_" + packageName, profileName).apply();
+        }
     }
 
     public void renameProfile(String profileName, String newProfile) {
@@ -105,6 +133,12 @@ public class KeymapProfiles {
         sharedPref.edit()
                 .putStringSet(profileName, stringSet)
                 .apply();
+
+        if (packageName != null && !packageName.isEmpty()) {
+            if (sharedPref.getString("designated_profile_" + packageName, null) == null) {
+                setDesignatedProfileForApp(packageName, profileName);
+            }
+        }
     }
 
     public void deleteProfile(String profileName){

@@ -157,6 +157,7 @@ public class SettingsOverlay {
         SettingsBinding settingsBinding = SettingsBinding.inflate(LayoutInflater.from(context));
 
         settingsBinding.autoProfileSwitch.setChecked(keymapConfig.disableAutoProfiling);
+        settingsBinding.accessibilityModeSwitch.setChecked(keymapConfig.isAccessibilityMode());
         settingsBinding.useShizuku.setChecked(keymapConfig.useShizuku);
         settingsBinding.editorOverlay.setChecked(keymapConfig.editorOverlay);
 
@@ -179,6 +180,7 @@ public class SettingsOverlay {
 
         Runnable saveSettings = () -> {
             keymapConfig.disableAutoProfiling = settingsBinding.autoProfileSwitch.isChecked();
+            keymapConfig.inputMode = settingsBinding.accessibilityModeSwitch.isChecked() ? KeymapConfig.MODE_ACCESSIBILITY : KeymapConfig.MODE_ROOT;
             keymapConfig.useShizuku = settingsBinding.useShizuku.isChecked();
             keymapConfig.editorOverlay = settingsBinding.editorOverlay.isChecked();
             keymapConfig.showControls = settingsBinding.showControls.isChecked();

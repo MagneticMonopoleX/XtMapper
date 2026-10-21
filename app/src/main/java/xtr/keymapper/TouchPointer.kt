@@ -27,6 +27,7 @@ import androidx.annotation.UiThread
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import xtr.keymapper.accessibility.AccessibilityInputDispatcher
 import xtr.keymapper.databinding.CursorBinding
 import xtr.keymapper.editor.EditorActivity
 import xtr.keymapper.editor.EditorService
@@ -36,6 +37,8 @@ import xtr.keymapper.keymap.KeymapProfile
 import xtr.keymapper.keymap.KeymapProfiles
 import xtr.keymapper.profiles.ProfileSelector
 import xtr.keymapper.server.RemoteServiceHelper
+import xtr.keymapper.service.KeymapperTileService
+import xtr.keymapper.service.XtMapperAccessibilityService
 
 class TouchPointer : Service() {
     private val binder: IBinder = TouchPointerBinder()
@@ -46,6 +49,8 @@ class TouchPointer : Service() {
     private var activityRemoteCallback = false
     private var mWindowManager: WindowManager? = null
     private var displayId = 0
+    private var a11yDispatcher: AccessibilityInputDispatcher? = null
+    private var lastForegroundPackage: String? = null
 
 
     interface MainActivityCallback {
@@ -65,8 +70,8 @@ class TouchPointer : Service() {
     }
 
     override fun onStartCommand(i: Intent?, flags: Int, startId: Int): Int {
-        if (i == null) {
-            stopSelf()
+        if (i == null || ACTION_STOP == i.action) {
+            stopKeymapper()
             return START_NOT_STICKY
         }
 
@@ -117,8 +122,17 @@ class TouchPointer : Service() {
 
         this.displayId = i.getIntExtra(DISPLAY_ID, Display.DEFAULT_DISPLAY)
 
+        isRunning = true
+        currentSelectedProfile = this.selectedProfile
+        activeInstance = this
+        KeymapperTileService.updateTile(this)
+
+        XtMapperAccessibilityService.foregroundAppListener = { pkg ->
+            handleForegroundAppChanged(pkg)
+        }
+
         val keymapProfile = KeymapProfiles(this).getProfile(selectedProfile, true)
-        connectRemoteService(keymapProfile)
+        applyProfile(keymapProfile)
 
         getSystemService(DisplayManager::class.java).registerDisplayListener(object :
             DisplayListener {
@@ -137,7 +151,7 @@ class TouchPointer : Service() {
                            keymap will be scaled in remote service */
 
                         // Get new instance of remote service to avoid DeadObjectException
-                        connectRemoteService(keymapProfile);
+                        applyProfile(keymapProfile)
                     }
                 }
             }
@@ -152,8 +166,39 @@ class TouchPointer : Service() {
 
     fun launchProfile(profileName: String?) {
         this.selectedProfile = profileName
+        currentSelectedProfile = profileName
+        KeymapperTileService.updateTile(this)
         val keymapProfile = KeymapProfiles(this).getProfile(selectedProfile, true)
-        connectRemoteService(keymapProfile)
+        applyProfile(keymapProfile)
+    }
+
+    fun applyProfile(profile: KeymapProfile) {
+        val keymapConfig = KeymapConfig(this)
+        Log.d("TouchPointer", "applyProfile: isAccessibilityMode=${keymapConfig.isAccessibilityMode}, selectedProfile=$selectedProfile, keysCount=${profile.keys.size}")
+        if (keymapConfig.isAccessibilityMode) {
+            setupAccessibilityMode(profile, keymapConfig)
+        } else {
+            connectRemoteService(profile)
+        }
+    }
+
+    private fun setupAccessibilityMode(profile: KeymapProfile, keymapConfig: KeymapConfig) {
+        val display = getSystemService(DisplayManager::class.java).getDisplay(displayId)
+        val size = Point()
+        display?.getRealSize(size)
+
+        Log.d("TouchPointer", "setupAccessibilityMode: screen=(${size.x}x${size.y}), keysCount=${profile.keys.size}")
+        if (a11yDispatcher == null) {
+            a11yDispatcher = AccessibilityInputDispatcher(profile, keymapConfig, size.x, size.y, mCallback)
+            XtMapperAccessibilityService.inputDispatcher = a11yDispatcher
+        } else {
+            a11yDispatcher!!.updateProfile(profile, keymapConfig)
+        }
+
+        if (keymapConfig.showControls) {
+            ShowKeymapService.start(this, selectedProfile)
+        }
+        activityCallback?.updateCmdView1("Accessibility mode: $selectedProfile")
     }
 
     private fun connectRemoteService(profile: KeymapProfile) {
@@ -212,7 +257,17 @@ class TouchPointer : Service() {
         }
     }
 
-    override fun onDestroy() {
+    fun stopKeymapper() {
+        if (!isRunning && activeInstance == null) return
+        isRunning = false
+        activeInstance = null
+        XtMapperAccessibilityService.foregroundAppListener = null
+        if (XtMapperAccessibilityService.inputDispatcher === a11yDispatcher) {
+            XtMapperAccessibilityService.inputDispatcher = null
+        }
+        a11yDispatcher?.stop()
+        a11yDispatcher = null
+
         if (mService != null) try {
             mService!!.unregisterActivityObserver(mActivityObserverCallback)
             stopServer()
@@ -220,6 +275,18 @@ class TouchPointer : Service() {
             Log.e("stopServer", e.toString(), e)
         }
         mService = null
+
+        try {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } catch (_: Exception) {}
+
+        activityCallback?.stopPointer()
+        KeymapperTileService.updateTile(this)
+        stopSelf()
+    }
+
+    override fun onDestroy() {
+        stopKeymapper()
         activityCallback = null
         super.onDestroy()
     }
@@ -363,63 +430,45 @@ class TouchPointer : Service() {
      * This implementation is used to receive callbacks from the remote
      * service.
      */
-    private val mActivityObserverCallback: ActivityObserver = object : ActivityObserver.Stub() {
-        private var lastPackageName: String? = null
+    fun handleForegroundAppChanged(packageName: String) {
+        if (packageName == lastForegroundPackage) return
+        if (packageName == applicationContext.packageName || packageName.startsWith("xtr.keymapper")) return
+        lastForegroundPackage = packageName
 
-        override fun onForegroundActivitiesChanged(packageName: String) {
-            if (packageName == lastPackageName) return
-            lastPackageName = packageName
-            val context: Context = this@TouchPointer
-            val keymapProfiles = KeymapProfiles(context)
-            if (!keymapProfiles.profileExistsWithPackageName(packageName)) {
-                // No profile found, prompt user to create a new profile
+        val context: Context = this@TouchPointer
+        val keymapProfiles = KeymapProfiles(context)
+        val designated = keymapProfiles.getDesignatedProfileForApp(packageName)
+
+        Log.d("TouchPointer", "handleForegroundAppChanged: pkg=$packageName, designated=$designated, current=$selectedProfile")
+
+        if (designated != null) {
+            if (designated != selectedProfile) {
                 mHandler.post {
-                    ProfileSelector.showEnableProfileDialog(
-                        context,
-                        packageName
-                    ) { enabled: Boolean ->
-                        ProfileSelector.createNewProfileForApp(
-                            context,
-                            packageName,
-                            enabled
-                        ) { profile: String? ->
-                            launchProfile(profile)
-                        }
-                    }
-                }
-            } else {
-                // App specific profiles selection dialog
-                mHandler.post {
-                    ProfileSelector.select(context, { profile: String? ->
-                        // Reloading profile
-                        this@TouchPointer.selectedProfile = profile
-                        val keymapProfile = keymapProfiles.getProfile(profile, true)
-                        if (!keymapProfile.disabled) {
-                            connectRemoteService(keymapProfile)
-                            Toast.makeText(
-                                this@TouchPointer,
-                                "Keymapping enabled for $packageName",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        } else {
-                            try {
-                                mService!!.pauseMouse()
-                            } catch (_: RemoteException) {
-                            }
-                            Toast.makeText(
-                                this@TouchPointer,
-                                "Keymapping disabled for $packageName",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    }, packageName)
+                    launchProfile(designated)
+                    Toast.makeText(this@TouchPointer, "Switched to profile: $designated", Toast.LENGTH_SHORT).show()
                 }
             }
+        }
+    }
+
+    private val mActivityObserverCallback: ActivityObserver = object : ActivityObserver.Stub() {
+        override fun onForegroundActivitiesChanged(packageName: String) {
+            handleForegroundAppChanged(packageName)
         }
     }
 
     companion object {
         const val CHANNEL_ID: String = "pointer_service"
         const val DISPLAY_ID: String = "display_id"
+        const val ACTION_STOP: String = "xtr.keymapper.action.STOP"
+
+        @Volatile
+        var isRunning: Boolean = false
+
+        @Volatile
+        var currentSelectedProfile: String? = null
+
+        @Volatile
+        var activeInstance: TouchPointer? = null
     }
 }

@@ -26,6 +26,10 @@ public class KeymapConfig implements Parcelable {
     public boolean touchJitter;
     public float touchJitterSpread = 15f;
 
+    public static final int MODE_ROOT = 0;
+    public static final int MODE_ACCESSIBILITY = 1;
+    public int inputMode = MODE_ROOT;
+
     public static final String KEY_CTRL = "Ctrl", KEY_ALT = "Alt";
     public static final int TOUCHPAD_DIRECT = 3;
     public static final int TOUCHPAD_RELATIVE = 4;
@@ -85,6 +89,7 @@ public class KeymapConfig implements Parcelable {
         floatingKeysSize = in.readFloat();
         touchJitter = in.readByte() != 0;
         touchJitterSpread = in.readFloat();
+        inputMode = in.readInt();
     }
 
     @Override
@@ -124,6 +129,7 @@ public class KeymapConfig implements Parcelable {
         dest.writeFloat(floatingKeysSize);
         dest.writeByte((byte) (touchJitter ? 1 : 0));
         dest.writeFloat(touchJitterSpread);
+        dest.writeInt(inputMode);
     }
 
     @Override
@@ -149,7 +155,7 @@ public class KeymapConfig implements Parcelable {
         ctrlMouseWheelZoom = sharedPref.getBoolean("ctrl_mouse_wheel_zoom", false);
         ctrlDragMouseGesture = sharedPref.getBoolean("ctrl_drag_mouse_gesture", true);
         mouseAimToggle = sharedPref.getBoolean("mouse_aim_shortcut_toggle", true);
-        disableAutoProfiling = sharedPref.getBoolean("disable_auto_profile", true);
+        disableAutoProfiling = sharedPref.getBoolean("disable_auto_profile", false);
         useShizuku = sharedPref.getBoolean("use_shizuku", false);
         editorOverlay = sharedPref.getBoolean("editor_overlay", false);
 
@@ -176,6 +182,7 @@ public class KeymapConfig implements Parcelable {
         floatingKeysSize = sharedPref.getFloat("floating_keys_size", 1);
         touchJitter = sharedPref.getBoolean("touch_jitter", false);
         touchJitterSpread = sharedPref.getFloat("touch_jitter_spread", 15f);
+        inputMode = sharedPref.getInt("input_mode", MODE_ROOT);
     }
 
     public void applySharedPrefs() {
@@ -204,7 +211,12 @@ public class KeymapConfig implements Parcelable {
                 .putFloat("floating_keys_size", floatingKeysSize)
                 .putBoolean("touch_jitter", touchJitter)
                 .putFloat("touch_jitter_spread", touchJitterSpread)
+                .putInt("input_mode", inputMode)
                 .apply();
+    }
+
+    public boolean isAccessibilityMode() {
+        return inputMode == MODE_ACCESSIBILITY;
     }
 
 }

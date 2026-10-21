@@ -31,7 +31,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.ui.draw.clip
+import xtr.keymapper.keymap.KeymapConfig
 import xtr.keymapper.keymap.KeymapProfiles
+import xtr.keymapper.service.XtMapperAccessibilityService
 
 // ============ THEME COLORS ============
 
@@ -80,6 +83,7 @@ internal data class AppState(
     val isServiceActive: Boolean = false,
     val hasAccessibilityPermission: Boolean = true,
     val hasOverlayPermission: Boolean = false,
+    val inputMode: Int = KeymapConfig.MODE_ROOT,
     val connectedDevices: List<HardwareDevice> = emptyList(),
     val profiles: List<GameProfile> = emptyList()
 )
@@ -90,6 +94,7 @@ internal data class AppState(
 private fun KeymapperApp(
     state: MutableState<AppState>,
     onToggleService: () -> Unit = {},
+    onToggleInputMode: () -> Unit = {},
     onFixPermission: () -> Unit = {},
     onTestInput: () -> Unit = {},
     onSelectProfile: (GameProfile) -> Unit = {},
@@ -155,6 +160,7 @@ private fun KeymapperApp(
                                 GlobalStatusToggle(
                                     state = currentState,
                                     onToggleService = onToggleService,
+                                    onToggleInputMode = onToggleInputMode,
                                     onFixPermission = onFixPermission
                                 )
                             }
@@ -253,10 +259,12 @@ private fun createComposeState(activity: MainActivity): AppState {
         )
     }
 
+    val config = KeymapConfig(activity)
     return AppState(
         isServiceActive = activity.isComposeServiceActive(),
-        hasAccessibilityPermission = true,
+        hasAccessibilityPermission = XtMapperAccessibilityService.isEnabled(activity),
         hasOverlayPermission = Settings.canDrawOverlays(activity),
+        inputMode = config.inputMode,
         connectedDevices = loadComposeDevices(),
         profiles = profiles
     )
@@ -293,6 +301,10 @@ private fun GameKeyMapperActivityContent(activity: MainActivity) {
         state = state,
         onToggleService = {
             activity.toggleServiceFromCompose()
+            refresh()
+        },
+        onToggleInputMode = {
+            activity.toggleInputModeFromCompose()
             refresh()
         },
         onFixPermission = {
@@ -366,6 +378,7 @@ private fun GlobalStatusToggle(
     state: AppState,
     modifier: Modifier = Modifier,
     onToggleService: () -> Unit,
+    onToggleInputMode: () -> Unit,
     onFixPermission: () -> Unit
 ) {
     val statusColor = if (state.isServiceActive) KeymapperTheme.Success else KeymapperTheme.Error
@@ -423,7 +436,39 @@ private fun GlobalStatusToggle(
                 modifier = Modifier.padding(vertical = 12.dp)
             )
 
-            if (!state.hasAccessibilityPermission) {
+            // Mode toggle: Root vs Accessibility
+            Row(
+                modifier = Modifier
+                    .padding(vertical = 4.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(KeymapperTheme.Card)
+                    .clickable { onToggleInputMode() }
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = if (state.inputMode == KeymapConfig.MODE_ACCESSIBILITY) Icons.Default.Accessibility else Icons.Default.Security,
+                    contentDescription = null,
+                    tint = KeymapperTheme.Accent,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (state.inputMode == KeymapConfig.MODE_ACCESSIBILITY) "Mode: Accessibility (No Root)" else "Mode: Root",
+                    color = KeymapperTheme.TextPrimary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Icon(
+                    imageVector = Icons.Default.SwapHoriz,
+                    contentDescription = null,
+                    tint = KeymapperTheme.TextSecondary,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+
+            if (state.inputMode == KeymapConfig.MODE_ACCESSIBILITY && !state.hasAccessibilityPermission) {
                 PermissionRow(
                     icon = Icons.Default.Warning,
                     text = "Accessibility permission required",
