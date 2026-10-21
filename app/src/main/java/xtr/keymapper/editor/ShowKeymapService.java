@@ -24,7 +24,7 @@ public class ShowKeymapService extends Service {
         if (editorUi != null) {
             EditorUI ui = editorUi;
             editorUi = null;
-            ui.hideView();
+            ui.closeEditor();
         }
         super.onDestroy();
     }
@@ -39,7 +39,7 @@ public class ShowKeymapService extends Service {
         if (editorUi != null) {
             EditorUI ui = editorUi;
             editorUi = null;
-            ui.hideView();
+            ui.closeEditor();
         }
 
         String selectedProfile = intent.getStringExtra(EditorActivity.PROFILE_NAME);
@@ -49,8 +49,8 @@ public class ShowKeymapService extends Service {
         }
         KeymapConfig keymapConfig = new KeymapConfig(this);
         Context context = new ContextThemeWrapper(this, R.style.Theme_XtMapper);
-        editorUi = new EditorUI(context, editorCallback, selectedProfile, EditorUI.SHOW_KEYMAP_ONLY);
-        editorUi.loadKeymapAfterView();
+        editorUi = new EditorUI(context, editorCallback, selectedProfile, EditorUI.SHOW_KEYMAP_ONLY, null);
+        editorUi.loadKeymapAndObserveSizeChanges();
         editorUi.showControls(keymapConfig.showControlsOpacity);
         return START_NOT_STICKY;
     }

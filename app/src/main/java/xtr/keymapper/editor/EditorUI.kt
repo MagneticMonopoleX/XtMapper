@@ -19,14 +19,15 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.view.WindowInsetsCompat
-import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.setViewTreeLifecycleOwner
-import androidx.savedstate.SavedStateRegistry
-import androidx.savedstate.SavedStateRegistryController
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import androidx.lifecycle.findViewTreeLifecycleOwner
+import androidx.lifecycle.findViewTreeViewModelStoreOwner
+import androidx.savedstate.findViewTreeSavedStateRegistryOwner
 import xtr.keymapper.IRemoteService
 import xtr.keymapper.OnKeyEventListener
 import xtr.keymapper.R
@@ -42,14 +43,14 @@ import xtr.keymapper.keymap.KeymapProfiles
 import xtr.keymapper.macro.MacroIdUtils
 import xtr.keymapper.macro.MacroStatus
 import xtr.keymapper.macro.MacroView
-import xtr.keymapper.macro.MacroView.OnFinishListener
 import xtr.keymapper.server.RemoteServiceHelper
 
 class EditorUI(
     private val context: Context, // Callback when the editor UI is hidden/closed
     private val editorCallback: EditorCallback?, /* Name of the currently loaded keymap profile */
-    private val profileName: String?, private val startMode: Int
-) : OnKeyEventListener.Stub(), LifecycleOwner, SavedStateRegistryOwner {
+    private val profileName: String?, private val startMode: Int,// Compose Dialog Management
+    private val importExportComposeView: ComposeView?
+) : OnKeyEventListener.Stub() {
 
     // When a keyboard key is pressed,
     // Receives keyboard input while editing a key binding
@@ -76,19 +77,6 @@ class EditorUI(
 
     // IPC connection to the remote service that captures raw input
     private var mService: IRemoteService? = null
-
-    // Compose Dialog Management
-    private var importExportComposeView: ComposeView? = null
-    private var importExportLifecycle: LifecycleRegistry? = null
-    private var importExportSavedStateController: SavedStateRegistryController? = null
-
-    // LifecycleOwner implementation
-    private val lifecycleRegistry = LifecycleRegistry(this)
-    override val lifecycle = lifecycleRegistry
-
-    // SavedStateRegistryOwner implementation
-    private val savedStateRegistryController = SavedStateRegistryController.create(this)
-    override val savedStateRegistry: SavedStateRegistry = savedStateRegistryController.savedStateRegistry
 
     init {
         val layoutInflater = context.getSystemService(LayoutInflater::class.java)
@@ -170,7 +158,7 @@ class EditorUI(
             mainView.setFocusable(true)
         }
 
-        loadKeymapAfterView()
+        loadKeymapAndObserveSizeChanges()
     }
 
     fun openSettings() {
@@ -202,21 +190,14 @@ class EditorUI(
 
     private fun openOverlayWindow(alpha: Float = -1f) {
         val overlayView =
-            (if (startMode == EditorUI.Companion.SHOW_KEYMAP_ONLY) keysContainerView else mainView)!!
+            (if (startMode == SHOW_KEYMAP_ONLY) keysContainerView else mainView)!!
         if (overlayOpen) {
             removeView(overlayView)
         }
 
         val mWindowManager = context.getSystemService(WindowManager::class.java)
         val mParams =
-            if (startMode == SHOW_KEYMAP_ONLY) Utils.getPointerLayoutParams(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_SYSTEM_ALERT) else WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_SYSTEM_ALERT,
-                WindowManager.LayoutParams.FLAG_FULLSCREEN or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR,
-                PixelFormat.TRANSLUCENT
-            )
+            if (startMode == SHOW_KEYMAP_ONLY) Utils.getPointerLayoutParams(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_SYSTEM_ALERT) else windowManagerLayoutParams()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             mParams.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
@@ -235,6 +216,15 @@ class EditorUI(
         overlayOpen = true
         if (startMode != SHOW_KEYMAP_ONLY) hideSystemBars()
     }
+
+    private fun windowManagerLayoutParams(): WindowManager.LayoutParams = WindowManager.LayoutParams(
+        WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_SYSTEM_ALERT,
+        WindowManager.LayoutParams.FLAG_FULLSCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR,
+        PixelFormat.TRANSLUCENT
+    )
 
     private fun hideSystemBars() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -278,11 +268,11 @@ class EditorUI(
         val key = input_event[2].substring(4)
 
         // Incoming calls are not guaranteed to be executed on the main thread
-        mHandler.post(Runnable {
+        mHandler.post {
             if (macroDialog != null) macroDialog!!.onKey(key)
             else if (keyInFocus != null) keyInFocus!!.setText(key)
             settingsOverlay!!.onKey(key)
-        })
+        }
     }
 
 
@@ -299,7 +289,7 @@ class EditorUI(
 
         when (id) {
             R.id.save -> {
-                hideView()
+                closeEditor()
             }
             R.id.macro -> {
                 showMacroDialog()
@@ -327,13 +317,13 @@ class EditorUI(
 
     private fun showMacroDialog() {
         macroDialog = MacroDialog(context, overlayOpen, profile)
-        macroDialog!!.show(View.OnClickListener { v: View? ->
+        macroDialog!!.show { v: View? ->
             if (v != null) addMacro()
             if (macroDialog != null) {
                 macroDialog!!.dismiss()
                 macroDialog = null
             }
-        })
+        }
     }
 
     /**
@@ -346,7 +336,7 @@ class EditorUI(
             mainView!!.setFocusable(true)
         }
         val macroStatus = MacroStatus(context, settingsOverlay!!.binding.catalog)
-        val macroView = MacroView(context, OnFinishListener { macroView_: MacroView? ->
+        val macroView = MacroView(context) { macroView_: MacroView? ->
             // Stop counting time in stopwatch
             macroStatus.stop()
 
@@ -355,48 +345,49 @@ class EditorUI(
             macroView_!!.invalidate()
 
             // Redirect keyboard input
-            mainView!!.setOnKeyListener(View.OnKeyListener { v: View?, keyCode: Int, event: KeyEvent? ->
+            mainView!!.setOnKeyListener { v: View?, keyCode: Int, event: KeyEvent? ->
                 this@EditorUI.onKey(
                     v,
                     keyCode,
                     event!!
                 )
-            })
+            }
             settingsOverlay.unHideButtons()
             if (mService == null) mainView.setFocusable(false)
             showMacroDialog()
-        })
+        }
         // Hide existing buttons in catalog till macro finish
         settingsOverlay.hideButtons()
         macroStatus.start()
 
         keysContainerView.addView(macroView)
         // Redirect keyboard input
-        mainView!!.setOnKeyListener(View.OnKeyListener { v: View?, keyCode: Int, event: KeyEvent? ->
+        mainView!!.setOnKeyListener { v, keyCode: Int, event: KeyEvent? ->
             macroView.onKey(
                 event
             )
-        })
+        }
 
-        settingsOverlay.binding.catalog.setOnClickListener(View.OnClickListener { v: View? -> macroView.clearCanvasAndFinish() })
+        settingsOverlay.binding.catalog.setOnClickListener { _: View? -> macroView.clearCanvasAndFinish() }
     }
 
-    fun hideView() {
+    /** saves, unregisters listeners, removes views, and triggers Activity or service cleanup. */
+    fun closeEditor() {
         if (startMode == START_EDITOR) saveKeymap()
         if (startMode != SHOW_KEYMAP_ONLY) {
             unregisterOnKeyEventListener()
             settingsOverlay!!.onDestroyView()
 
             removeView(mainView!!)
-            if (editorCallback != null) editorCallback.onHideView()
+            if (editorCallback != null) editorCallback.onEditorClosed()
             else RemoteServiceHelper.reloadKeymap(context)
 
             // Load keymap config after settingsOverlay wrote config
             val keymapConfig = KeymapConfig(context)
             // We stopped the service, so we must restart it
-            RemoteServiceHelper.runIfActive(context, Runnable {
+            RemoteServiceHelper.runIfActive(context) {
                 if (keymapConfig.showControls) ShowKeymapService.start(context, profileName)
-            })
+            }
         } else removeView(keysContainerView)
         
         // Cleanup Compose Dialog if it's open
@@ -411,9 +402,15 @@ class EditorUI(
         view.invalidate()
     }
 
-    fun loadKeymapAfterView() {
+    /**
+     * Loads the profile after attaching the editor view and saves/reloads it when the container
+     * changes size. See docs/editor-lifecycle.md for the launch flow and possible interaction with
+     * component position animations.
+     * note: the view is NOT already attached on every call path.
+     */
+    fun loadKeymapAndObserveSizeChanges() {
         profileBackup = KeymapProfiles(context).getProfile(profileName, false)
-        keysContainerView.addOnLayoutChangeListener(OnLayoutChangeListener { v: View?, left: Int, top: Int, right: Int, bottom: Int, oldLeft: Int, oldTop: Int, oldRight: Int, oldBottom: Int ->
+        keysContainerView.addOnLayoutChangeListener { _, left: Int, top: Int, right: Int, bottom: Int, oldLeft: Int, oldTop: Int, oldRight: Int, oldBottom: Int ->
             val oldWidth = oldRight - oldLeft
             val oldHeight = oldBottom - oldTop
             val newWidth = right - left
@@ -423,8 +420,8 @@ class EditorUI(
             if (orientationChanged && profile != null) {
                 reloadKeymap()
             }
-        })
-        keysContainerView.post(Runnable { this.loadKeymap() })
+        }
+        keysContainerView.post { this.loadKeymap() }
     }
 
     private fun reloadKeymap() {
@@ -474,12 +471,16 @@ class EditorUI(
     }
 
 
+    /**
+     * Persists positions read from the live editor component views. See
+     * docs/editor-lifecycle.md for the save call sites and the resize/animation timing risk.
+     */
     private fun saveKeymap() {
         if (startMode == SHOW_KEYMAP_ONLY) return
 
         val linesToWrite = ArrayList<String?>()
 
-        editorUiComponents.forEach { linesToWrite.add(it.dataLine) }
+        editorUiComponents.forEach { linesToWrite.add(it.toConfigLine()) }
 
         // Enabled macro ids
         MacroIdUtils.getLines(linesToWrite, profile)
@@ -503,7 +504,7 @@ class EditorUI(
      */
     private fun generateConfigString(): String {
         val linesToWrite = ArrayList<String>()
-        editorUiComponents.forEach { linesToWrite.add(it.dataLine) }
+        editorUiComponents.forEach { linesToWrite.add(it.toConfigLine()) }
 
         MacroIdUtils.getLines(linesToWrite, profile)
         return linesToWrite.joinToString("\n")
@@ -520,24 +521,25 @@ class EditorUI(
     }
 
     private fun showImportExportDialog(configCode: String) {
-        if (importExportComposeView != null) return // Prevent duplicate overlays
 
-        // 1. Manually manage lifecycle state for Compose
-        importExportLifecycle = LifecycleRegistry(this)
-        importExportSavedStateController = SavedStateRegistryController.create(this)
-        importExportSavedStateController?.performAttach()
-        importExportSavedStateController?.performRestore(null)
-        importExportLifecycle?.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+        val composeView = importExportComposeView ?: return
 
-        // 2. Instantiate and establish ComposeView context
-        importExportComposeView = ComposeView(context)
-        
-        // Bind the lifecycle providers to the view tree hierarchy
-        importExportComposeView!!.setViewTreeLifecycleOwner(this)
-        importExportComposeView!!.setViewTreeSavedStateRegistryOwner(this)
+        // Reuse the host view tree's owners so Compose uses the Activity or Service lifecycle.
+        val lifecycleOwner = (context as? LifecycleOwner)
+            ?: (mainView?.findViewTreeLifecycleOwner())
+            ?: error("Compose host must provide a LifecycleOwner")
+        val savedStateOwner = (context as? SavedStateRegistryOwner)
+            ?: (mainView?.findViewTreeSavedStateRegistryOwner())
+            ?: error("Compose host must provide a SavedStateRegistryOwner")
+        composeView.setViewTreeLifecycleOwner(lifecycleOwner)
+        composeView.setViewTreeSavedStateRegistryOwner(savedStateOwner)
+        if (context is ViewModelStoreOwner) {
+            composeView.setViewTreeViewModelStoreOwner(context)
+        } else if (mainView?.findViewTreeViewModelStoreOwner() != null) {
+            composeView.setViewTreeViewModelStoreOwner(mainView.findViewTreeViewModelStoreOwner()!!)
+        }
 
-        // 3. Attach Compose content (ImportExportDialog from Kotlin)
-        importExportComposeView!!.setContent {
+        composeView.setContent {
             // Kotlin's default parameters allow 4-arg Java signature
             ImportExportDialog(
                 configCode,
@@ -547,44 +549,28 @@ class EditorUI(
             )
         }
 
-        // 4. Attach the view tree to the window manager or Activity
-        if (context is Activity) {
+        if (context is Activity && !overlayOpen) {
             context.addContentView(
-                importExportComposeView,
+                composeView,
                 ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
             )
         } else {
-            val wm = context.getSystemService(WindowManager::class.java)
-            val params = WindowManager.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_SYSTEM_ALERT,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
-                PixelFormat.TRANSLUCENT
+            // The Activity and Service editor both own a full-screen overlay root. Add the dialog
+            // to that same root instead of opening a second application-overlay window.
+            val parent = mainView ?: error("Overlay editor has no root view")
+            parent.addView(
+                composeView,
+                ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
             )
-            wm.addView(importExportComposeView, params)
         }
         
-        importExportLifecycle!!.handleLifecycleEvent(Lifecycle.Event.ON_START)
-        importExportLifecycle!!.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
     }
 
     private fun closeImportExportDialog() {
         val view = importExportComposeView ?: return
-        
-        importExportLifecycle?.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
-        importExportLifecycle?.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
-        importExportLifecycle?.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
 
-        try {
-            if (overlayOpen && view.isAttachedToWindow) context.getSystemService(
-                WindowManager::class.java
-            ).removeView(view)
-        } catch (_: IllegalArgumentException) {
-            // ignored
-        }
+        (view.parent as? ViewGroup)?.removeView(view)
 
-        importExportComposeView = null
     }
 
     private val mCallback: EditorUiComponentCallback = object : EditorUiComponentCallback {

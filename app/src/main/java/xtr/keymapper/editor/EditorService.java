@@ -1,24 +1,26 @@
 package xtr.keymapper.editor;
 
- import android.app.Service;
- import android.content.Context;
+import android.content.Context;
 import android.content.Intent;
- import android.os.IBinder;
+import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.Log;
 
 import androidx.appcompat.view.ContextThemeWrapper;
+import androidx.compose.ui.platform.ComposeView;
 
 import xtr.keymapper.R;
- import xtr.keymapper.keymap.KeymapConfig;
+import xtr.keymapper.keymap.KeymapConfig;
 import xtr.keymapper.server.RemoteServiceHelper;
 
-public class EditorService extends Service {
+public class EditorService extends ComposeLifecycleService {
     private static final String TAG = "EditorService";
     private EditorUI editor;
+    private ComposeView composeView;
 
     private void editorCallback() {
         editor = null;
+        composeView = null;
         stopSelf();
     }
 
@@ -40,12 +42,12 @@ public class EditorService extends Service {
         }
 
         String selectedProfile = intent.getStringExtra(EditorActivity.PROFILE_NAME);
-
         if (selectedProfile == null) {
             selectedProfile = "Default";
         }
 
         KeymapConfig keymapConfig = new KeymapConfig(this);
+
         if (keymapConfig.editorOverlay) {
             if (editor != null) {
                 EditorUI ui = editor;
@@ -53,8 +55,21 @@ public class EditorService extends Service {
                 ui.hideView();
             }
 
-            Context context = new ContextThemeWrapper(EditorService.this, R.style.Theme_XtMapper);
-            editor = new EditorUI(context, this::editorCallback, selectedProfile, EditorUI.START_EDITOR);
+            Context context = new ContextThemeWrapper(
+                    EditorService.this,
+                    R.style.Theme_XtMapper
+            );
+
+            // Create the ComposeView using the themed context.
+            composeView = createComposeView(context);
+
+            editor = new EditorUI(
+                    context,
+                    this::editorCallback,
+                    selectedProfile,
+                    EditorUI.START_EDITOR,
+                    composeView
+            );
 
             RemoteServiceHelper.getInstance(EditorService.this, remoteService -> {
                 try {
@@ -67,11 +82,17 @@ public class EditorService extends Service {
             });
 
             editor.open(true);
+
         } else {
             Intent newIntent = new Intent(this, EditorActivity.class)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     .addFlags(Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
-            newIntent.putExtra(EditorActivity.PROFILE_NAME, selectedProfile);
+
+            newIntent.putExtra(
+                    EditorActivity.PROFILE_NAME,
+                    selectedProfile
+            );
+
             startActivity(newIntent);
             stopSelf();
         }
