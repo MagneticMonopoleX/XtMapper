@@ -47,15 +47,6 @@ class KeymapperTileService : TileService() {
                 return
             }
 
-            val keymapConfig = KeymapConfig(this)
-            if (keymapConfig.isAccessibilityMode && !XtMapperAccessibilityService.isEnabled(this)) {
-                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                launchIntent(intent)
-                Toast.makeText(this, "Enable XtMapper Accessibility Service", Toast.LENGTH_SHORT).show()
-                return
-            }
 
             val selectedProfile = TouchPointer.currentSelectedProfile ?: "Default"
             val startIntent = Intent(this, TouchPointer::class.java).apply {

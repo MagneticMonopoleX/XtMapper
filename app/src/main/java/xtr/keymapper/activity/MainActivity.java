@@ -38,7 +38,6 @@ import xtr.keymapper.editor.EditorUI;
 import xtr.keymapper.keymap.KeymapConfig;
 import xtr.keymapper.server.RemoteServiceHelper;
 import xtr.keymapper.GameKeyMapperBridge;
-import xtr.keymapper.service.XtMapperAccessibilityService;
 import xtr.keymapper.keymap.KeymapProfile;
 import xtr.keymapper.keymap.KeymapProfiles;
 
@@ -85,7 +84,7 @@ public class MainActivity extends AppCompatActivity {
         Server.setupServer(this, mCallback);
 
 
-        if (!startedFromShell && !keymapConfig.isAccessibilityMode()) {
+        if (!startedFromShell) {
             /*
              * If user has not enabled "Use Shizuku" from settings
              * Then Check for root access
@@ -197,28 +196,15 @@ public class MainActivity extends AppCompatActivity {
             requestNotificationPermission();
         }
         KeymapConfig keymapConfig = new KeymapConfig(this);
-        if (keymapConfig.isAccessibilityMode()) {
-            if (!XtMapperAccessibilityService.Companion.isEnabled(this)) {
-                alertAccessibilityNotAuthorized();
-                return null;
-            }
-        } else {
-            if (RemoteServiceHelper.useShizuku) {
-                if (!Shizuku.pingBinder() || Shizuku.checkSelfPermission() != PERMISSION_GRANTED)
-                    alertShizukuNotAuthorized();
-            } else if (Boolean.FALSE.equals(Shell.isAppGrantedRoot())) {
-                // No need to alert about root access if started from shell
-                if (!startedFromShell) alertRootAccessAndExit();
-            }
+        if (keymapConfig.isShizukuMode()) {
+            if (!Shizuku.pingBinder() || Shizuku.checkSelfPermission() != PERMISSION_GRANTED)
+                alertShizukuNotAuthorized();
+        } else if (Boolean.FALSE.equals(Shell.isAppGrantedRoot())) {
+            // No need to alert about root access if started from shell
+            if (!startedFromShell) alertRootAccessAndExit();
         }
 
         return null;
-    }
-
-    public void alertAccessibilityNotAuthorized() {
-        showAlertDialog(R.string.accessibility_service_name, R.string.accessibility_service_description,
-                (dialog, which) -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)),
-                R.string.ok);
     }
 
     private void setButtonState(boolean start) {
@@ -342,9 +328,7 @@ public class MainActivity extends AppCompatActivity {
 
     public void fixPermissionFromCompose() {
         KeymapConfig config = new KeymapConfig(this);
-        if (config.isAccessibilityMode() && !XtMapperAccessibilityService.Companion.isEnabled(this)) {
-            startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
-        } else if (config.isShizukuMode() && (!Shizuku.pingBinder() || Shizuku.checkSelfPermission() != PERMISSION_GRANTED)) {
+        if (config.isShizukuMode() && (!Shizuku.pingBinder() || Shizuku.checkSelfPermission() != PERMISSION_GRANTED)) {
             if (Shizuku.pingBinder()) Shizuku.requestPermission(0);
             else alertShizukuNotRunning();
         } else if (!Settings.canDrawOverlays(this)) {
@@ -358,19 +342,13 @@ public class MainActivity extends AppCompatActivity {
             config.inputMode = KeymapConfig.MODE_SHIZUKU;
             config.useShizuku = true;
             RemoteServiceHelper.useShizuku = true;
-        } else if (config.inputMode == KeymapConfig.MODE_SHIZUKU) {
-            config.inputMode = KeymapConfig.MODE_ACCESSIBILITY;
-            config.useShizuku = false;
-            RemoteServiceHelper.useShizuku = false;
         } else {
             config.inputMode = KeymapConfig.MODE_ROOT;
             config.useShizuku = false;
             RemoteServiceHelper.useShizuku = false;
         }
         config.applySharedPrefs();
-        if (config.isAccessibilityMode() && !XtMapperAccessibilityService.Companion.isEnabled(this)) {
-            alertAccessibilityNotAuthorized();
-        } else if (config.isShizukuMode()) {
+        if (config.isShizukuMode()) {
             if (!Shizuku.pingBinder()) alertShizukuNotRunning();
             else if (Shizuku.checkSelfPermission() != PERMISSION_GRANTED) alertShizukuNotAuthorized();
         }
@@ -381,21 +359,8 @@ public class MainActivity extends AppCompatActivity {
 
     public void testInputFromCompose() {
         KeymapConfig config = new KeymapConfig(this);
-        if (config.isAccessibilityMode()) {
-            if (!XtMapperAccessibilityService.Companion.isEnabled(this)) {
-                alertAccessibilityNotAuthorized();
-                return;
-            }
-            var dispatcher = XtMapperAccessibilityService.Companion.getInputDispatcher();
-            if (dispatcher != null) {
-                dispatcher.injectEvent(500f, 500f, 1, 0);
-                Toast.makeText(this, "Dispatched Accessibility test tap with jitter!", Toast.LENGTH_SHORT).show();
-            } else {
-                Toast.makeText(this, "Start service first to test input", Toast.LENGTH_SHORT).show();
-            }
-        } else {
-            Toast.makeText(this, "Root mode active. Connect game controller or keyboard to test.", Toast.LENGTH_SHORT).show();
-        }
+        String modeName = config.isShizukuMode() ? "Shizuku (ADB)" : "Root";
+        Toast.makeText(this, modeName + " mode active. Connect keyboard/mouse to test.", Toast.LENGTH_SHORT).show();
     }
 
     public void selectProfileFromCompose(String profileName) {

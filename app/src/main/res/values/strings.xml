@@ -127,11 +127,8 @@
     <string name="touch_jitter_summary">Add random error to touch coordinates</string>
     <string name="touch_jitter_spread">Touch Jitter Spread</string>
     <string name="touch_jitter_spread_px">Touch jitter spread: %d px</string>
-    <string name="accessibility_service_name">XtMapper Keymapper</string>
-    <string name="accessibility_service_description">Allows XtMapper to map keyboard keys, inject touches without root, and automatically detect foreground apps to switch profiles.</string>
     <string name="quick_settings_tile_name">XtMapper</string>
     <string name="input_mode">Input Mode</string>
     <string name="input_mode_root">Root</string>
-    <string name="input_mode_accessibility">Accessibility (No Root)</string>
-    <string name="use_accessibility_mode">Use Accessibility Mode (No Root)</string>
+    <string name="input_mode_shizuku">Shizuku (ADB)</string>
 </resources>

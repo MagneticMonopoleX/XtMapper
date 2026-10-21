@@ -27,7 +27,6 @@ import androidx.annotation.UiThread
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import xtr.keymapper.accessibility.AccessibilityInputDispatcher
 import xtr.keymapper.databinding.CursorBinding
 import xtr.keymapper.editor.EditorActivity
 import xtr.keymapper.editor.EditorService
@@ -38,7 +37,6 @@ import xtr.keymapper.keymap.KeymapProfiles
 import xtr.keymapper.profiles.ProfileSelector
 import xtr.keymapper.server.RemoteServiceHelper
 import xtr.keymapper.service.KeymapperTileService
-import xtr.keymapper.service.XtMapperAccessibilityService
 
 class TouchPointer : Service() {
     private val binder: IBinder = TouchPointerBinder()
@@ -49,7 +47,6 @@ class TouchPointer : Service() {
     private var activityRemoteCallback = false
     private var mWindowManager: WindowManager? = null
     private var displayId = 0
-    private var a11yDispatcher: AccessibilityInputDispatcher? = null
     private var lastForegroundPackage: String? = null
 
 
@@ -127,10 +124,6 @@ class TouchPointer : Service() {
         activeInstance = this
         KeymapperTileService.updateTile(this)
 
-        XtMapperAccessibilityService.foregroundAppListener = { pkg ->
-            handleForegroundAppChanged(pkg)
-        }
-
         val keymapProfile = KeymapProfiles(this).getProfile(selectedProfile, true)
         applyProfile(keymapProfile)
 
@@ -174,32 +167,9 @@ class TouchPointer : Service() {
 
     fun applyProfile(profile: KeymapProfile) {
         val keymapConfig = KeymapConfig(this)
-        Log.d("TouchPointer", "applyProfile: inputMode=${keymapConfig.inputMode}, isAccessibilityMode=${keymapConfig.isAccessibilityMode}, selectedProfile=$selectedProfile, keysCount=${profile.keys.size}")
-        if (keymapConfig.isAccessibilityMode) {
-            setupAccessibilityMode(profile, keymapConfig)
-        } else {
-            RemoteServiceHelper.useShizuku = (keymapConfig.inputMode == KeymapConfig.MODE_SHIZUKU || keymapConfig.useShizuku)
-            connectRemoteService(profile)
-        }
-    }
-
-    private fun setupAccessibilityMode(profile: KeymapProfile, keymapConfig: KeymapConfig) {
-        val display = getSystemService(DisplayManager::class.java).getDisplay(displayId)
-        val size = Point()
-        display?.getRealSize(size)
-
-        Log.d("TouchPointer", "setupAccessibilityMode: screen=(${size.x}x${size.y}), keysCount=${profile.keys.size}")
-        if (a11yDispatcher == null) {
-            a11yDispatcher = AccessibilityInputDispatcher(profile, keymapConfig, size.x, size.y, mCallback)
-            XtMapperAccessibilityService.inputDispatcher = a11yDispatcher
-        } else {
-            a11yDispatcher!!.updateProfile(profile, keymapConfig)
-        }
-
-        if (keymapConfig.showControls) {
-            ShowKeymapService.start(this, selectedProfile)
-        }
-        activityCallback?.updateCmdView1("Accessibility mode: $selectedProfile")
+        Log.d("TouchPointer", "applyProfile: inputMode=${keymapConfig.inputMode}, isShizukuMode=${keymapConfig.isShizukuMode}, selectedProfile=$selectedProfile, keysCount=${profile.keys.size}")
+        RemoteServiceHelper.useShizuku = keymapConfig.isShizukuMode
+        connectRemoteService(profile)
     }
 
     private fun connectRemoteService(profile: KeymapProfile) {
@@ -263,12 +233,6 @@ class TouchPointer : Service() {
         if (!isRunning && activeInstance == null) return
         isRunning = false
         activeInstance = null
-        XtMapperAccessibilityService.foregroundAppListener = null
-        if (XtMapperAccessibilityService.inputDispatcher === a11yDispatcher) {
-            XtMapperAccessibilityService.inputDispatcher = null
-        }
-        a11yDispatcher?.stop()
-        a11yDispatcher = null
 
         if (mService != null) try {
             mService!!.unregisterActivityObserver(mActivityObserverCallback)

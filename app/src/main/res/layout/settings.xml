@@ -15,12 +15,6 @@
             android:checked="false"
             android:text="@string/disable_auto_profile" />
 
-        <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/accessibility_mode_switch"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:checked="false"
-            android:text="@string/use_accessibility_mode" />
 
         <com.google.android.material.materialswitch.MaterialSwitch
             android:id="@+id/use_shizuku"

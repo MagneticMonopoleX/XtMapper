@@ -27,8 +27,7 @@ public class KeymapConfig implements Parcelable {
     public float touchJitterSpread = 15f;
 
     public static final int MODE_ROOT = 0;
-    public static final int MODE_ACCESSIBILITY = 1;
-    public static final int MODE_SHIZUKU = 2;
+    public static final int MODE_SHIZUKU = 1;
     public int inputMode = MODE_ROOT;
 
     public static final String KEY_CTRL = "Ctrl", KEY_ALT = "Alt";
@@ -216,16 +215,12 @@ public class KeymapConfig implements Parcelable {
                 .apply();
     }
 
-    public boolean isAccessibilityMode() {
-        return inputMode == MODE_ACCESSIBILITY;
-    }
-
     public boolean isShizukuMode() {
         return inputMode == MODE_SHIZUKU || useShizuku;
     }
 
     public boolean isRootMode() {
-        return inputMode == MODE_ROOT && !useShizuku;
+        return !isShizukuMode();
     }
 
 }

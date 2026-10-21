@@ -34,7 +34,6 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.draw.clip
 import xtr.keymapper.keymap.KeymapConfig
 import xtr.keymapper.keymap.KeymapProfiles
-import xtr.keymapper.service.XtMapperAccessibilityService
 
 // ============ THEME COLORS ============
 
@@ -81,7 +80,6 @@ internal enum class DeviceType {
 
 internal data class AppState(
     val isServiceActive: Boolean = false,
-    val hasAccessibilityPermission: Boolean = true,
     val hasShizukuPermission: Boolean = true,
     val hasOverlayPermission: Boolean = false,
     val inputMode: Int = KeymapConfig.MODE_ROOT,
@@ -268,7 +266,6 @@ private fun createComposeState(activity: MainActivity): AppState {
     }
     return AppState(
         isServiceActive = activity.isComposeServiceActive(),
-        hasAccessibilityPermission = XtMapperAccessibilityService.isEnabled(activity),
         hasShizukuPermission = hasShizuku,
         hasOverlayPermission = Settings.canDrawOverlays(activity),
         inputMode = config.inputMode,
@@ -455,12 +452,10 @@ private fun GlobalStatusToggle(
             ) {
                 val modeText = when (state.inputMode) {
                     KeymapConfig.MODE_SHIZUKU -> "Mode: Shizuku (ADB)"
-                    KeymapConfig.MODE_ACCESSIBILITY -> "Mode: Accessibility (No Root)"
                     else -> "Mode: Root"
                 }
                 val modeIcon = when (state.inputMode) {
                     KeymapConfig.MODE_SHIZUKU -> Icons.Default.Terminal
-                    KeymapConfig.MODE_ACCESSIBILITY -> Icons.Default.Accessibility
                     else -> Icons.Default.Security
                 }
                 Icon(
@@ -489,14 +484,6 @@ private fun GlobalStatusToggle(
                 PermissionRow(
                     icon = Icons.Default.Warning,
                     text = "Shizuku authorization required",
-                    onFixPermission = onFixPermission
-                )
-            }
-
-            if (state.inputMode == KeymapConfig.MODE_ACCESSIBILITY && !state.hasAccessibilityPermission) {
-                PermissionRow(
-                    icon = Icons.Default.Warning,
-                    text = "Accessibility permission required",
                     onFixPermission = onFixPermission
                 )
             }
@@ -1156,7 +1143,6 @@ private fun getSampleDevices(): List<HardwareDevice> = listOf(
 
 private fun getSampleAppState(): AppState = AppState(
     isServiceActive = true,
-    hasAccessibilityPermission = true,
     hasOverlayPermission = true,
     connectedDevices = getSampleDevices(),
     profiles = getSampleProfiles()
@@ -1196,7 +1182,6 @@ fun KeymapperInactivePreview() {
     KeymapperApp(
         state = remember { mutableStateOf(getSampleAppState().copy(
             isServiceActive = false,
-            hasAccessibilityPermission = false,
             hasOverlayPermission = false
         ))},
     )
