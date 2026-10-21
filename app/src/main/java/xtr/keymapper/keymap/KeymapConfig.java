@@ -28,6 +28,7 @@ public class KeymapConfig implements Parcelable {
 
     public static final int MODE_ROOT = 0;
     public static final int MODE_ACCESSIBILITY = 1;
+    public static final int MODE_SHIZUKU = 2;
     public int inputMode = MODE_ROOT;
 
     public static final String KEY_CTRL = "Ctrl", KEY_ALT = "Alt";
@@ -182,7 +183,7 @@ public class KeymapConfig implements Parcelable {
         floatingKeysSize = sharedPref.getFloat("floating_keys_size", 1);
         touchJitter = sharedPref.getBoolean("touch_jitter", false);
         touchJitterSpread = sharedPref.getFloat("touch_jitter_spread", 15f);
-        inputMode = sharedPref.getInt("input_mode", MODE_ROOT);
+        inputMode = sharedPref.getInt("input_mode", useShizuku ? MODE_SHIZUKU : MODE_ROOT);
     }
 
     public void applySharedPrefs() {
@@ -217,6 +218,14 @@ public class KeymapConfig implements Parcelable {
 
     public boolean isAccessibilityMode() {
         return inputMode == MODE_ACCESSIBILITY;
+    }
+
+    public boolean isShizukuMode() {
+        return inputMode == MODE_SHIZUKU || useShizuku;
+    }
+
+    public boolean isRootMode() {
+        return inputMode == MODE_ROOT && !useShizuku;
     }
 
 }

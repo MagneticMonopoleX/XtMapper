@@ -82,6 +82,7 @@ internal enum class DeviceType {
 internal data class AppState(
     val isServiceActive: Boolean = false,
     val hasAccessibilityPermission: Boolean = true,
+    val hasShizukuPermission: Boolean = true,
     val hasOverlayPermission: Boolean = false,
     val inputMode: Int = KeymapConfig.MODE_ROOT,
     val connectedDevices: List<HardwareDevice> = emptyList(),
@@ -260,9 +261,15 @@ private fun createComposeState(activity: MainActivity): AppState {
     }
 
     val config = KeymapConfig(activity)
+    val hasShizuku = try {
+        rikka.shizuku.Shizuku.pingBinder() && rikka.shizuku.Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED
+    } catch (_: Exception) {
+        false
+    }
     return AppState(
         isServiceActive = activity.isComposeServiceActive(),
         hasAccessibilityPermission = XtMapperAccessibilityService.isEnabled(activity),
+        hasShizukuPermission = hasShizuku,
         hasOverlayPermission = Settings.canDrawOverlays(activity),
         inputMode = config.inputMode,
         connectedDevices = loadComposeDevices(),
@@ -436,7 +443,7 @@ private fun GlobalStatusToggle(
                 modifier = Modifier.padding(vertical = 12.dp)
             )
 
-            // Mode toggle: Root vs Accessibility
+            // Mode toggle: Root vs Shizuku (ADB) vs Accessibility
             Row(
                 modifier = Modifier
                     .padding(vertical = 4.dp)
@@ -446,15 +453,25 @@ private fun GlobalStatusToggle(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                val modeText = when (state.inputMode) {
+                    KeymapConfig.MODE_SHIZUKU -> "Mode: Shizuku (ADB)"
+                    KeymapConfig.MODE_ACCESSIBILITY -> "Mode: Accessibility (No Root)"
+                    else -> "Mode: Root"
+                }
+                val modeIcon = when (state.inputMode) {
+                    KeymapConfig.MODE_SHIZUKU -> Icons.Default.Terminal
+                    KeymapConfig.MODE_ACCESSIBILITY -> Icons.Default.Accessibility
+                    else -> Icons.Default.Security
+                }
                 Icon(
-                    imageVector = if (state.inputMode == KeymapConfig.MODE_ACCESSIBILITY) Icons.Default.Accessibility else Icons.Default.Security,
+                    imageVector = modeIcon,
                     contentDescription = null,
                     tint = KeymapperTheme.Accent,
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = if (state.inputMode == KeymapConfig.MODE_ACCESSIBILITY) "Mode: Accessibility (No Root)" else "Mode: Root",
+                    text = modeText,
                     color = KeymapperTheme.TextPrimary,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium
@@ -465,6 +482,14 @@ private fun GlobalStatusToggle(
                     contentDescription = null,
                     tint = KeymapperTheme.TextSecondary,
                     modifier = Modifier.size(16.dp)
+                )
+            }
+
+            if (state.inputMode == KeymapConfig.MODE_SHIZUKU && !state.hasShizukuPermission) {
+                PermissionRow(
+                    icon = Icons.Default.Warning,
+                    text = "Shizuku authorization required",
+                    onFixPermission = onFixPermission
                 )
             }
 

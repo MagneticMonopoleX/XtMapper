@@ -174,10 +174,11 @@ class TouchPointer : Service() {
 
     fun applyProfile(profile: KeymapProfile) {
         val keymapConfig = KeymapConfig(this)
-        Log.d("TouchPointer", "applyProfile: isAccessibilityMode=${keymapConfig.isAccessibilityMode}, selectedProfile=$selectedProfile, keysCount=${profile.keys.size}")
+        Log.d("TouchPointer", "applyProfile: inputMode=${keymapConfig.inputMode}, isAccessibilityMode=${keymapConfig.isAccessibilityMode}, selectedProfile=$selectedProfile, keysCount=${profile.keys.size}")
         if (keymapConfig.isAccessibilityMode) {
             setupAccessibilityMode(profile, keymapConfig)
         } else {
+            RemoteServiceHelper.useShizuku = (keymapConfig.inputMode == KeymapConfig.MODE_SHIZUKU || keymapConfig.useShizuku)
             connectRemoteService(profile)
         }
     }
@@ -230,7 +231,8 @@ class TouchPointer : Service() {
                     if (!activityRemoteCallback) {
                         mService!!.registerActivityObserver(mActivityObserverCallback)
                         activityRemoteCallback = true
-                    } else if (!profile.disabled) {
+                    }
+                    if (!profile.disabled) {
                         mService!!.startServer(
                             profile,
                             keymapConfig,

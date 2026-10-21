@@ -344,6 +344,9 @@ public class MainActivity extends AppCompatActivity {
         KeymapConfig config = new KeymapConfig(this);
         if (config.isAccessibilityMode() && !XtMapperAccessibilityService.Companion.isEnabled(this)) {
             startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+        } else if (config.isShizukuMode() && (!Shizuku.pingBinder() || Shizuku.checkSelfPermission() != PERMISSION_GRANTED)) {
+            if (Shizuku.pingBinder()) Shizuku.requestPermission(0);
+            else alertShizukuNotRunning();
         } else if (!Settings.canDrawOverlays(this)) {
             checkOverlayPermission(this);
         }
@@ -351,10 +354,25 @@ public class MainActivity extends AppCompatActivity {
 
     public void toggleInputModeFromCompose() {
         KeymapConfig config = new KeymapConfig(this);
-        config.inputMode = config.isAccessibilityMode() ? KeymapConfig.MODE_ROOT : KeymapConfig.MODE_ACCESSIBILITY;
+        if (config.inputMode == KeymapConfig.MODE_ROOT) {
+            config.inputMode = KeymapConfig.MODE_SHIZUKU;
+            config.useShizuku = true;
+            RemoteServiceHelper.useShizuku = true;
+        } else if (config.inputMode == KeymapConfig.MODE_SHIZUKU) {
+            config.inputMode = KeymapConfig.MODE_ACCESSIBILITY;
+            config.useShizuku = false;
+            RemoteServiceHelper.useShizuku = false;
+        } else {
+            config.inputMode = KeymapConfig.MODE_ROOT;
+            config.useShizuku = false;
+            RemoteServiceHelper.useShizuku = false;
+        }
         config.applySharedPrefs();
         if (config.isAccessibilityMode() && !XtMapperAccessibilityService.Companion.isEnabled(this)) {
             alertAccessibilityNotAuthorized();
+        } else if (config.isShizukuMode()) {
+            if (!Shizuku.pingBinder()) alertShizukuNotRunning();
+            else if (Shizuku.checkSelfPermission() != PERMISSION_GRANTED) alertShizukuNotAuthorized();
         }
         if (isServiceBound && pointerOverlay != null) {
             pointerOverlay.applyProfile(new KeymapProfiles(this).getProfile(selectedProfileName, true));
